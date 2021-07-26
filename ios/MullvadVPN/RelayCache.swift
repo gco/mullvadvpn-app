@@ -65,6 +65,20 @@ private class AnyRelayCacheObserver: WeakObserverBox, RelayCacheObserver {
     }
 }
 
+enum RelayFetchResult {
+    /// Request to update relays was throttled.
+    case throttled
+
+    /// Failure to download relays.
+    case failure(Error)
+
+    /// Refreshed relays but the same content was found on remote.
+    case sameContent
+
+    /// Refreshed relays with new content.
+    case newContent
+}
+
 class RelayCache {
     private let logger = Logger(label: "RelayCache")
 
@@ -150,9 +164,9 @@ class RelayCache {
         }
     }
 
-    func updateRelays() {
+    func updateRelays(completionHandler: ((RelayFetchResult) -> Void)?) {
         dispatchQueue.async {
-            self._updateRelays()
+            self._updateRelays(completionHandler: completionHandler)
         }
     }
 
@@ -184,25 +198,29 @@ class RelayCache {
 
     // MARK: - Private instance methods
 
-    private func _updateRelays() {
+    private func _updateRelays(completionHandler: ((RelayFetchResult) -> Void)?) {
         switch Self.read(cacheFileURL: self.cacheFileURL) {
         case .success(let cachedRelays):
             let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelays.updatedAt)
 
             if let nextUpdate = nextUpdate, nextUpdate <= Date() {
-                self.downloadRelays(previouslyCachedRelays: cachedRelays)
+                self.downloadRelays(previouslyCachedRelays: cachedRelays, completionHandler: completionHandler)
+            } else {
+                completionHandler?(.throttled)
             }
 
         case .failure(let readError):
             self.logger.error(chainedError: readError, message: "Failed to read the relay cache to determine if it needs to be updated")
 
             if Self.shouldDownloadRelaysOnReadFailure(readError) {
-                self.downloadRelays(previouslyCachedRelays: nil)
+                self.downloadRelays(previouslyCachedRelays: nil, completionHandler: completionHandler)
+            } else {
+                completionHandler?(.failure(readError))
             }
         }
     }
 
-    private func downloadRelays(previouslyCachedRelays: CachedRelays?) {
+    private func downloadRelays(previouslyCachedRelays: CachedRelays?, completionHandler: ((RelayFetchResult) -> Void)?) {
         let taskResult = makeDownloadTask(etag: previouslyCachedRelays?.etag) { (result) in
             switch result {
             case .success(.newContent(let etag, let relays)):
@@ -217,8 +235,11 @@ class RelayCache {
                         observer.relayCache(self, didUpdateCachedRelays: cachedRelays)
                     }
 
+                    completionHandler?(.newContent)
+
                 case .failure(let error):
                     self.logger.error(chainedError: error, message: "Failed to store downloaded relays")
+                    completionHandler?(.failure(error))
                 }
 
             case .success(.notModified):
@@ -229,14 +250,16 @@ class RelayCache {
 
                 switch Self.write(cacheFileURL: self.cacheFileURL, record: cachedRelays) {
                 case .success:
-                    break
+                    completionHandler?(.sameContent)
 
                 case .failure(let error):
                     self.logger.error(chainedError: error, message: "Failed to update cached relays timestamp")
+                    completionHandler?(.failure(error))
                 }
 
             case .failure(let error):
                 self.logger.error(chainedError: error, message: "Failed to download relays")
+                completionHandler?(.failure(error))
             }
         }
 
@@ -250,6 +273,7 @@ class RelayCache {
         case .failure(let restError):
             self.logger.error(chainedError: restError, message: "Failed to create a REST request for updating relays")
             downloadTask = nil
+            completionHandler?(.failure(restError))
         }
     }
 
@@ -259,7 +283,7 @@ class RelayCache {
             guard let self = self else { return }
 
             if self.isPeriodicUpdatesEnabled {
-                self._updateRelays()
+                self._updateRelays(completionHandler: nil)
             }
         }
 

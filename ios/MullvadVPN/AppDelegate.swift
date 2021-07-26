@@ -77,7 +77,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Update relays
         RelayCache.shared.addObserver(self)
-        RelayCache.shared.updateRelays()
+        RelayCache.shared.updateRelays(completionHandler: nil)
 
         // Load initial relays
         self.logger?.debug("Load relays")
@@ -134,6 +134,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         TunnelManager.shared.refreshTunnelState(completionHandler: nil)
+    }
+
+    // MARK: - Background refresh
+
+    func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        RelayCache.shared.updateRelays { fetchResult in
+            let backgroundFetchResult: UIBackgroundFetchResult
+            switch fetchResult {
+            case .newContent:
+                backgroundFetchResult = .newData
+            case .sameContent, .throttled:
+                backgroundFetchResult = .noData
+            case .failure:
+                backgroundFetchResult = .failed
+            }
+            completionHandler(backgroundFetchResult)
+        }
     }
 
     // MARK: - Private
