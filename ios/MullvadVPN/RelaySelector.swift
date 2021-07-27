@@ -31,16 +31,12 @@ extension RelaySelectorResult {
     }
 }
 
-struct RelaySelector {
+enum RelaySelector {}
 
-    private let relays: ServerRelaysResponse
+extension RelaySelector {
 
-    init(relays: ServerRelaysResponse) {
-        self.relays = relays
-    }
-
-    func evaluate(with constraints: RelayConstraints) -> RelaySelectorResult? {
-        let filteredRelays = Self.applyConstraints(constraints, relays: Self.parseRelaysResponse(self.relays))
+    static func evaluate(relays: ServerRelaysResponse, constraints: RelayConstraints) -> RelaySelectorResult? {
+        let filteredRelays = Self.applyConstraints(constraints, relays: Self.parseRelaysResponse(relays))
         let totalWeight = filteredRelays.reduce(0) { $0 + $1.relay.weight }
 
         guard totalWeight > 0 else { return nil }

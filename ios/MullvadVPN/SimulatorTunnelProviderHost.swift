@@ -20,7 +20,7 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
     }
 
     private var connectionInfo: TunnelConnectionInfo?
-    private let logger = Logger(label: "SimulatorTunnelProviderHost")
+    private let providerLogger = Logger(label: "SimulatorTunnelProviderHost")
 
     private let operationQueue = OperationQueue()
     private lazy var exclusivityController = ExclusivityController<ExclusivityCategory>(operationQueue: operationQueue)
@@ -80,7 +80,7 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
             completionHandler?(data)
 
         case .failure(let error):
-            self.logger.error(chainedError: error)
+            self.providerLogger.error(chainedError: error)
             completionHandler?(nil)
         }
     }
@@ -114,11 +114,11 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
                     completion(selectorResult)
 
                 case .failure(let error):
-                    self.logger.error(chainedError: error)
+                    self.providerLogger.error(chainedError: error)
                     completion(nil)
                 }
             case .failure(let error):
-                self.logger.error(chainedError: error)
+                self.providerLogger.error(chainedError: error)
                 completion(nil)
             }
         }

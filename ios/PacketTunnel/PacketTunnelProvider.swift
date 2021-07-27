@@ -14,93 +14,74 @@ import WireGuardKit
 
 class PacketTunnelProvider: NEPacketTunnelProvider {
 
-    enum OperationCategory {
-        case exclusive
-    }
-
     /// Tunnel provider logger
-    private let logger: Logger
+    private let providerLogger: Logger
 
     /// WireGuard adapter logger
-    private let wgAdapterLogger: Logger
-
-    /// Current tunnel state
-    private var tunnelState: PacketTunnelState = .disconnected {
-        didSet {
-            logger.info("New tunnel state: \(String(reflecting: self.tunnelState))")
-        }
-    }
+    private let tunnelLogger: Logger
 
     /// Internal queue
-    private let dispatchQueue = DispatchQueue(label: "net.mullvad.MullvadVPN.PacketTunnel", qos: .utility)
+    private let dispatchQueue = DispatchQueue(label: "PacketTunnel", qos: .utility)
 
-    private lazy var operationQueue: OperationQueue = {
-        let operationQueue = OperationQueue()
-        operationQueue.underlyingQueue = self.dispatchQueue
-        return operationQueue
-    }()
-
-    private lazy var wgAdapter: WireGuardAdapter = {
+    /// WireGuard adapter
+    private lazy var adapter: WireGuardAdapter = {
         return WireGuardAdapter(with: self, logHandler: { [weak self] (logLevel, message) in
-            self?.wgAdapterLogger.log(level: logLevel.loggerLevel, "\(message)")
+            self?.tunnelLogger.log(level: logLevel.loggerLevel, "\(message)")
         })
     }()
 
-    private lazy var exclusivityController: ExclusivityController<OperationCategory> = {
-        return ExclusivityController(operationQueue: self.operationQueue)
-    }()
+    /// Tunnel connection information
+    private var tunnelConnection: TunnelConnectionInfo?
 
     override init() {
         initLoggingSystem(bundleIdentifier: Bundle.main.bundleIdentifier!)
 
-        logger = Logger(label: "PacketTunnelProvider")
-        wgAdapterLogger = Logger(label: "WireGuard")
+        providerLogger = Logger(label: "PacketTunnelProvider")
+        tunnelLogger = Logger(label: "WireGuard")
     }
 
-    // MARK: - Subclass
-
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
-        logger.info("Start the tunnel")
+        dispatchQueue.async {
+            self.providerLogger.info("Start the tunnel")
 
-        let operation = AsyncBlockOperation { (finish) in
-            self.doStartTunnel { (result) in
-                switch result {
-                case .success:
-                    self.logger.info("Started the tunnel")
-                    completionHandler(nil)
+            switch self.makeConfiguration() {
+            case .success(let tunnelConfiguration):
+                self.tunnelConnection = tunnelConfiguration.selectorResult.tunnelConnectionInfo
 
-                case .failure(let error):
-                    self.logger.error(chainedError: error, message: "Failed to start the tunnel")
-                    completionHandler(error)
+                self.adapter.start(tunnelConfiguration: tunnelConfiguration.wgTunnelConfig) { (error) in
+                    self.dispatchQueue.async {
+                        let error = error.map { PacketTunnelProviderError.startWireguardAdapter($0) }
+                        if let error = error {
+                            self.providerLogger.error(chainedError: error)
+                        }
+                        completionHandler(error)
+                    }
                 }
 
-                finish()
+            case .failure(let error):
+                completionHandler(error)
             }
         }
-
-        exclusivityController.addOperation(operation, categories: [.exclusive])
     }
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        logger.info("Stop the tunnel. Reason: \(reason)")
+        dispatchQueue.async {
+            self.providerLogger.info("Stop the tunnel. Reason: \(reason)")
 
-        let operation = AsyncBlockOperation { (finish) in
-            self.doStopTunnel { (result) in
-                switch result {
-                case .success:
-                    self.logger.info("Stopped the tunnel")
-                case .failure(let error):
-                    self.logger.error(chainedError: error, message: "Failed to stop the tunnel")
+            self.tunnelConnection = nil
+            self.adapter.stop { (error) in
+                self.dispatchQueue.async {
+                    if let error = error {
+                        let error = PacketTunnelProviderError.stopWireguardAdapter(error)
+
+                        self.providerLogger.error(chainedError: error)
+                    } else {
+                        self.providerLogger.info("Stopped the tunnel")
+                    }
+                    completionHandler()
                 }
-                finish()
             }
         }
-
-        operation.addDidFinishBlockObserver { (op) in
-            completionHandler()
-        }
-
-        exclusivityController.addOperation(operation, categories: [.exclusive])
     }
 
     override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
@@ -117,7 +98,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     }
 
                 case .tunnelInformation:
-                    self.replyAppMessage(.success(self.tunnelState.tunnelConnectionInfo), completionHandler: completionHandler)
+                    self.replyAppMessage(.success(self.tunnelConnection), completionHandler: completionHandler)
                 }
 
             case .failure(let error):
@@ -135,129 +116,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         // Add code here to wake up.
     }
 
-    // MARK: - Tunnel management
-
-    private func doStartTunnel(completionHandler: @escaping (Result<(), PacketTunnelProviderError>) -> Void) {
-        self.tunnelState = .connecting(nil)
-
-        makePacketTunnelConfig { (result) in
-            guard case .success(let packetTunnelConfig) = result else {
-                self.tunnelState = .disconnected
-
-                completionHandler(result.map { _ in () })
-                return
-            }
-
-            self.tunnelState = .connecting(packetTunnelConfig.selectorResult.tunnelConnectionInfo)
-
-            self.wgAdapter.start(tunnelConfiguration: packetTunnelConfig.wgTunnelConfig) { (error) in
-                self.dispatchQueue.async {
-                    if let error = error {
-                        self.tunnelState = .disconnected
-                        completionHandler(.failure(.startWireguardAdapter(error)))
-                        return
-                    }
-
-                    let persistentKeychainReference = packetTunnelConfig.persistentKeychainReference
-                    let keyRotationManager = AutomaticKeyRotationManager(persistentKeychainReference: persistentKeychainReference, eventQueue: self.dispatchQueue)
-                    keyRotationManager.eventHandler = { [weak self] (keyRotationEvent) in
-                        guard let self = self else { return }
-
-                        self.reloadTunnelSettings { (result) in
-                            switch result {
-                            case .success:
-                                break
-
-                            case .failure(let error):
-                                self.logger.error(chainedError: error, message: "Failed to reload tunnel settings")
-                            }
-                        }
-                    }
-
-                    RelayCache.shared.startPeriodicUpdates(queue: self.dispatchQueue) {
-                        keyRotationManager.startAutomaticRotation(queue: self.dispatchQueue) {
-                            let context = PacketTunnelContext(
-                                wgAdapter: self.wgAdapter,
-                                keyRotationManager: keyRotationManager
-                            )
-
-                            self.tunnelState = .connected(packetTunnelConfig.selectorResult.tunnelConnectionInfo, context)
-
-                            completionHandler(.success(()))
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func doStopTunnel(completionHandler: @escaping (Result<(), PacketTunnelProviderError>) -> Void) {
-        guard let context = self.tunnelState.context else {
-            logger.warning("Cannot stop the tunnel in such state: \(self.tunnelState)")
-            completionHandler(.failure(.invalidTunnelState))
-            return
-        }
-
-        self.tunnelState = .disconnecting
-
-        RelayCache.shared.stopPeriodicUpdates(queue: self.dispatchQueue) {
-            context.keyRotationManager.stopAutomaticRotation(queue: self.dispatchQueue) {
-                context.wgAdapter.stop { (error) in
-                    self.dispatchQueue.async {
-                        self.tunnelState = .disconnected
-
-                        if let error = error {
-                            completionHandler(.failure(.stopWireguardAdapter(error)))
-                        } else {
-                            completionHandler(.success(()))
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func doReloadTunnelSettings(completionHandler: @escaping (Result<(), PacketTunnelProviderError>) -> Void) {
-        guard let context = self.tunnelState.context else {
-            logger.warning("Cannot reload tunnel settings in such state: \(self.tunnelState)")
-            completionHandler(.failure(.invalidTunnelState))
-            return
-        }
-
-        logger.info("Reload tunnel settings")
-
-        let priorTunnelState = self.tunnelState
-        self.tunnelState = .reconnecting(nil, context)
-
-        makePacketTunnelConfig { (result) in
-            guard case .success(let packetTunnelConfig) = result else {
-                self.tunnelState = priorTunnelState
-
-                completionHandler(result.map { _ in () })
-                return
-            }
-
-            self.tunnelState = .reconnecting(packetTunnelConfig.selectorResult.tunnelConnectionInfo, context)
-
-            context.wgAdapter.update(tunnelConfiguration: packetTunnelConfig.wgTunnelConfig) { (error) in
-                self.dispatchQueue.async {
-                    if let error = error {
-                        self.tunnelState = priorTunnelState
-                        completionHandler(.failure(.updateWireguardConfiguration(error)))
-                    } else {
-                        self.tunnelState = .connected(packetTunnelConfig.selectorResult.tunnelConnectionInfo, context)
-                        completionHandler(.success(()))
-                    }
-                }
-            }
-        }
-    }
-
     // MARK: - Private
 
-    private func replyAppMessage<T: Codable>(
-        _ result: Result<T, PacketTunnelProviderError>,
-        completionHandler: ((Data?) -> Void)?) {
+    private func replyAppMessage<T: Codable>(_ result: Result<T, PacketTunnelProviderError>, completionHandler: ((Data?) -> Void)?) {
         let result = result.flatMap { (response) -> Result<Data, PacketTunnelProviderError> in
             return PacketTunnelIpcHandler.encodeResponse(response: response)
                 .mapError { PacketTunnelProviderError.ipcHandler($0) }
@@ -268,83 +129,76 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             completionHandler?(data)
 
         case .failure(let error):
-            self.logger.error(chainedError: error)
+            self.providerLogger.error(chainedError: error)
             completionHandler?(nil)
         }
     }
 
-    private func makePacketTunnelConfig(completionHandler: @escaping (Result<PacketTunnelConfiguration, PacketTunnelProviderError>) -> Void) {
-        guard let keychainReference = protocolConfiguration.passwordReference else {
-            completionHandler(.failure(.missingKeychainConfigurationReference))
-            return
-        }
-
-        Self.makePacketTunnelConfig(keychainReference: keychainReference, queue: self.dispatchQueue) { (result) in
-            completionHandler(result)
+    private func makeConfiguration() -> Result<PacketTunnelConfiguration, PacketTunnelProviderError> {
+        if let ref = protocolConfiguration.passwordReference {
+            return Self.readTunnelSettings(keychainReference: ref)
+                .flatMap { tunnelSettings in
+                    return Self.selectRelayEndpoint(relayConstraints: tunnelSettings.relayConstraints)
+                        .map { (selectorResult) -> PacketTunnelConfiguration in
+                            return PacketTunnelConfiguration(
+                                tunnelSettings: tunnelSettings,
+                                selectorResult: selectorResult
+                            )
+                        }
+                }
+        } else {
+            return .failure(.missingKeychainConfigurationReference)
         }
     }
 
     private func reloadTunnelSettings(completionHandler: @escaping (Result<(), PacketTunnelProviderError>) -> Void) {
-        let operation = AsyncBlockOperation { (finish) in
-            self.doReloadTunnelSettings { (result) in
-                completionHandler(result)
-                finish()
-            }
-        }
+        providerLogger.info("Reload tunnel settings")
 
-        exclusivityController.addOperation(operation, categories: [.exclusive])
-    }
+        switch makeConfiguration() {
+        case .success(let packetTunnelConfig):
+            tunnelConnection = packetTunnelConfig.selectorResult.tunnelConnectionInfo
 
-    /// Returns a `PacketTunnelConfig` that contains the tunnel settings and selected relay
-    private class func makePacketTunnelConfig(keychainReference: Data, queue: DispatchQueue?, completionHandler: @escaping (Result<PacketTunnelConfiguration, PacketTunnelProviderError>) -> Void) {
-        switch Self.readTunnelSettings(keychainReference: keychainReference) {
-        case .success(let tunnelSettings):
-            Self.selectRelayEndpoint(relayConstraints: tunnelSettings.relayConstraints) { (result) in
-                let result = result.map { (selectorResult) -> PacketTunnelConfiguration in
-                    return PacketTunnelConfiguration(
-                        persistentKeychainReference: keychainReference,
-                        tunnelSettings: tunnelSettings,
-                        selectorResult: selectorResult
-                    )
-                }
-
-                queue.performOnWrappedOrCurrentQueue {
+            adapter.update(tunnelConfiguration: packetTunnelConfig.wgTunnelConfig) { (error) in
+                self.dispatchQueue.async {
+                    let result: Result<(), PacketTunnelProviderError>
+                    if let error = error {
+                        result = .failure(.updateWireguardConfiguration(error))
+                    } else {
+                        result = .success(())
+                    }
                     completionHandler(result)
                 }
             }
 
         case .failure(let error):
-            queue.performOnWrappedOrCurrentQueue {
-                completionHandler(.failure(error))
-            }
+            completionHandler(.failure(error))
         }
     }
 
     /// Read tunnel settings from Keychain
     private class func readTunnelSettings(keychainReference: Data) -> Result<TunnelSettings, PacketTunnelProviderError> {
-        TunnelSettingsManager.load(searchTerm: .persistentReference(keychainReference))
+        return TunnelSettingsManager.load(searchTerm: .persistentReference(keychainReference))
             .mapError { PacketTunnelProviderError.cannotReadTunnelSettings($0) }
             .map { $0.tunnelSettings }
     }
 
     /// Load relay cache with potential networking to refresh the cache and pick the relay for the
     /// given relay constraints.
-    private class func selectRelayEndpoint(relayConstraints: RelayConstraints, completionHandler: @escaping (Result<RelaySelectorResult, PacketTunnelProviderError>) -> Void) {
-        RelayCache.shared.read { (result) in
-            switch result {
-            case .success(let cachedRelayList):
-                let relaySelector = RelaySelector(relays: cachedRelayList.relays)
+    private class func selectRelayEndpoint(relayConstraints: RelayConstraints) -> Result<RelaySelectorResult, PacketTunnelProviderError> {
+        let cacheFileURL = RelayCacheIO.defaultCacheFileURL(forSecurityApplicationGroupIdentifier: ApplicationConfiguration.securityGroupIdentifier)!
+        let prebundledRelaysURL = RelayCacheIO.preBundledRelaysFileURL!
 
-                if let selectorResult = relaySelector.evaluate(with: relayConstraints) {
-                    completionHandler(.success(selectorResult))
-                } else {
-                    completionHandler(.failure(.noRelaySatisfyingConstraint))
-                }
-
-            case .failure(let error):
-                completionHandler(.failure(.readRelayCache(error)))
+        return RelayCacheIO.readWithFallback(cacheFileURL: cacheFileURL, preBundledRelaysFileURL: prebundledRelaysURL)
+            .mapError { relayCacheError -> PacketTunnelProviderError in
+                return .readRelayCache(relayCacheError)
             }
-        }
+            .flatMap { cachedRelayList -> Result<RelaySelectorResult, PacketTunnelProviderError> in
+                if let selectorResult = RelaySelector.evaluate(relays: cachedRelayList.relays, constraints: relayConstraints) {
+                    return .success(selectorResult)
+                } else {
+                    return .failure(.noRelaySatisfyingConstraint)
+                }
+            }
     }
 }
 
@@ -409,7 +263,6 @@ enum PacketTunnelProviderError: ChainedError {
 }
 
 struct PacketTunnelConfiguration {
-    var persistentKeychainReference: Data
     var tunnelSettings: TunnelSettings
     var selectorResult: RelaySelectorResult
 }
@@ -456,95 +309,6 @@ extension PacketTunnelConfiguration {
         case (false, false):
             return [mullvadEndpoint.ipv4Gateway, mullvadEndpoint.ipv6Gateway]
         }
-    }
-}
-
-struct PacketTunnelContext {
-    let wgAdapter: WireGuardAdapter
-    let keyRotationManager: AutomaticKeyRotationManager
-}
-
-enum PacketTunnelState {
-    case connecting(TunnelConnectionInfo?)
-    case connected(TunnelConnectionInfo, PacketTunnelContext)
-    case disconnecting
-    case disconnected
-    case reconnecting(TunnelConnectionInfo?, PacketTunnelContext)
-
-    var tunnelConnectionInfo: TunnelConnectionInfo? {
-        switch self {
-        case .connecting(let connectionInfo):
-            return connectionInfo
-        case .connected(let connectionInfo, _):
-            return connectionInfo
-        case .disconnecting:
-            return nil
-        case .disconnected:
-            return nil
-        case .reconnecting(let connectionInfo, _):
-            return connectionInfo
-        }
-    }
-
-    var context: PacketTunnelContext? {
-        switch self {
-        case .connecting:
-            return nil
-        case .connected(_, let context):
-            return context
-        case .disconnecting:
-            return nil
-        case .disconnected:
-            return nil
-        case .reconnecting(_, let context):
-            return context
-        }
-    }
-}
-
-extension PacketTunnelState: CustomStringConvertible, CustomDebugStringConvertible {
-    var description: String {
-        switch self {
-        case .connecting:
-            return "connecting"
-        case .connected:
-            return "connected"
-        case .disconnecting:
-            return "disconnecting"
-        case .disconnected:
-            return "disconnected"
-        case .reconnecting:
-            return "reconnecting"
-        }
-    }
-
-    var debugDescription: String {
-        var output = "PacketTunnelState."
-
-        switch self {
-        case .connecting(let connectionInfo):
-            output.append("connecting(")
-            output.append(String(reflecting: connectionInfo))
-            output.append(")")
-
-        case .connected(let connectionInfo, _):
-            output.append("connected(")
-            output.append(String(reflecting: connectionInfo))
-            output.append(")")
-
-        case .disconnecting:
-            output.append("disconnecting")
-
-        case .disconnected:
-            output.append("disconnected")
-
-        case .reconnecting(let connectionInfo, _):
-            output.append("reconnecting(")
-            output.append(String(reflecting: connectionInfo))
-            output.append(")")
-        }
-
-        return output
     }
 }
 
