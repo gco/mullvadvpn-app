@@ -142,17 +142,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // MARK: - Background refresh
 
     func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        logger?.info("Begin background refresh")
+
         RelayCacheTracker.shared.updateRelays { fetchResult in
-            let backgroundFetchResult: UIBackgroundFetchResult
-            switch fetchResult {
-            case .newContent:
-                backgroundFetchResult = .newData
-            case .sameContent, .throttled:
-                backgroundFetchResult = .noData
-            case .failure:
-                backgroundFetchResult = .failed
+            DispatchQueue.main.async {
+                let backgroundFetchResult = fetchResult.backgroundFetchResult
+
+                self.logger?.info("End background refresh with \(backgroundFetchResult.description)")
+
+                completionHandler(backgroundFetchResult)
             }
-            completionHandler(backgroundFetchResult)
         }
     }
 
@@ -789,4 +788,36 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         }
     }
 
+}
+
+// MARK: -
+
+extension RelayFetchResult {
+    var backgroundFetchResult: UIBackgroundFetchResult {
+        switch self {
+        case .newContent:
+            return .newData
+
+        case .sameContent, .throttled:
+            return .noData
+
+        case .failure:
+            return .failed
+        }
+    }
+}
+
+extension UIBackgroundFetchResult {
+    var description: String {
+        switch self {
+        case .newData:
+            return "new data"
+        case .noData:
+            return "no data"
+        case .failed:
+            return "failure"
+        @unknown default:
+            return "unknown (\(rawValue))"
+        }
+    }
 }
