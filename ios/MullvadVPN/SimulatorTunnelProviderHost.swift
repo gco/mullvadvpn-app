@@ -109,8 +109,10 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
                 switch TunnelSettingsManager.load(searchTerm: .persistentReference(keychainReference)) {
                 case .success(let entry):
                     let relayConstraints = entry.tunnelSettings.relayConstraints
-                    let relaySelector = RelaySelector(relays: cachedRelays.relays)
-                    let selectorResult = relaySelector.evaluate(with: relayConstraints)
+                    let selectorResult = RelaySelector.evaluate(
+                        relays: cachedRelays.relays,
+                        constraints: relayConstraints
+                    )
                     completion(selectorResult)
 
                 case .failure(let error):
