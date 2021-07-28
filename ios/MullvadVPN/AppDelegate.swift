@@ -78,9 +78,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         launchController.view.backgroundColor = .primaryColor
         self.window?.rootViewController = launchController
 
-        // Start relay updates
+        // Add relay cache observer
         RelayCacheTracker.shared.addObserver(self)
-        RelayCacheTracker.shared.startPeriodicUpdates()
 
         // Load initial relays
         self.logger?.debug("Load relays")
@@ -136,7 +135,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
+        // Refresh VPN tunnel state
         TunnelManager.shared.refreshTunnelState(completionHandler: nil)
+
+        // Start periodic relays updates
+        RelayCacheTracker.shared.startPeriodicUpdates()
+    }
+
+    func applicationWillResignActive(_ application: UIApplication) {
+        // Stop periodic relays updates
+        RelayCacheTracker.shared.stopPeriodicUpdates()
     }
 
     // MARK: - Background refresh

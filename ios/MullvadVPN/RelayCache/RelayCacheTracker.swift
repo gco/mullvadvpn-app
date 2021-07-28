@@ -50,7 +50,7 @@ enum RelayFetchResult {
 }
 
 class RelayCacheTracker {
-    private let logger = Logger(label: "RelayCache")
+    private let logger = Logger(label: "RelayCacheTracker")
 
     /// Mullvad REST client
     private let rest = MullvadRest()
@@ -94,22 +94,24 @@ class RelayCacheTracker {
 
     func startPeriodicUpdates() {
         dispatchQueue.async {
-            if !self.isPeriodicUpdatesEnabled {
-                self.isPeriodicUpdatesEnabled = true
+            guard !self.isPeriodicUpdatesEnabled else { return }
 
-                switch RelayCacheIO.read(cacheFileURL: self.cacheFileURL) {
-                case .success(let cachedRelayList):
-                    if let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelayList.updatedAt) {
-                        let startTime = Self.makeWalltime(fromDate: nextUpdate)
-                        self.scheduleRepeatingTimer(startTime: startTime)
-                    }
+            self.logger.debug("Start periodic updates")
 
-                case .failure(let readError):
-                    self.logger.error(chainedError: readError, message: "Failed to read the relay cache")
+            self.isPeriodicUpdatesEnabled = true
 
-                    if Self.shouldDownloadRelaysOnReadFailure(readError) {
-                        self.scheduleRepeatingTimer(startTime: .now())
-                    }
+            switch RelayCacheIO.read(cacheFileURL: self.cacheFileURL) {
+            case .success(let cachedRelayList):
+                if let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelayList.updatedAt) {
+                    let startTime = Self.makeWalltime(fromDate: nextUpdate)
+                    self.scheduleRepeatingTimer(startTime: startTime)
+                }
+
+            case .failure(let readError):
+                self.logger.error(chainedError: readError, message: "Failed to read the relay cache")
+
+                if Self.shouldDownloadRelaysOnReadFailure(readError) {
+                    self.scheduleRepeatingTimer(startTime: .now())
                 }
             }
         }
@@ -117,11 +119,17 @@ class RelayCacheTracker {
 
     func stopPeriodicUpdates() {
         dispatchQueue.async {
+            guard self.isPeriodicUpdatesEnabled else { return }
+
+            self.logger.debug("Stop periodic updates")
+
             self.isPeriodicUpdatesEnabled = false
 
             self.timerSource?.cancel()
             self.timerSource = nil
+
             self.downloadTask?.cancel()
+            self.downloadTask = nil
         }
     }
 
