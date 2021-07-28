@@ -149,8 +149,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         RelayCacheTracker.shared.stopPeriodicUpdates()
     }
 
-    // MARK: - Background refresh
-
     func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
         logger?.info("Begin background refresh")
 
