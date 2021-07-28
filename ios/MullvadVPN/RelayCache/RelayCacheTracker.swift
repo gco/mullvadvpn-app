@@ -92,7 +92,7 @@ class RelayCacheTracker {
         self.prebundledRelaysFileURL = prebundledRelaysFileURL
     }
 
-    func startPeriodicUpdates(queue: DispatchQueue?, completionHandler: (() -> Void)?) {
+    func startPeriodicUpdates() {
         dispatchQueue.async {
             if !self.isPeriodicUpdatesEnabled {
                 self.isPeriodicUpdatesEnabled = true
@@ -112,24 +112,16 @@ class RelayCacheTracker {
                     }
                 }
             }
-
-            queue.performOnWrappedOrCurrentQueue {
-                completionHandler?()
-            }
         }
     }
 
-    func stopPeriodicUpdates(queue: DispatchQueue?, completionHandler: (() -> Void)?) {
+    func stopPeriodicUpdates() {
         dispatchQueue.async {
             self.isPeriodicUpdatesEnabled = false
 
             self.timerSource?.cancel()
             self.timerSource = nil
             self.downloadTask?.cancel()
-
-            queue.performOnWrappedOrCurrentQueue {
-                completionHandler?()
-            }
         }
     }
 
