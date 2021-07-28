@@ -64,6 +64,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         SimulatorTunnelProvider.shared.delegate = simulatorTunnelProvider
         #endif
 
+        // Fetch data once an hour
+        application.setMinimumBackgroundFetchInterval(3600)
+
         // Assign user notification center delegate
         UNUserNotificationCenter.current().delegate = self
 
