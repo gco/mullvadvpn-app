@@ -11,6 +11,8 @@ import StoreKit
 import UserNotifications
 import Logging
 
+private let kBackgroundFetchInterval: TimeInterval = 3600
+
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
@@ -65,7 +67,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         #endif
 
         // Fetch data once an hour
-        application.setMinimumBackgroundFetchInterval(3600)
+        application.setMinimumBackgroundFetchInterval(kBackgroundFetchInterval)
 
         // Assign user notification center delegate
         UNUserNotificationCenter.current().delegate = self
