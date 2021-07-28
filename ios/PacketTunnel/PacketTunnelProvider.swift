@@ -203,9 +203,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 }
 
 enum PacketTunnelProviderError: ChainedError {
-    /// Failure to perform operation in such state
-    case invalidTunnelState
-
     /// Failure to read the relay cache
     case readRelayCache(RelayCacheError)
 
@@ -232,9 +229,6 @@ enum PacketTunnelProviderError: ChainedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidTunnelState:
-            return "Failure to handle request in such tunnel state"
-
         case .readRelayCache:
             return "Failure to read the relay cache"
 
