@@ -78,9 +78,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         launchController.view.backgroundColor = .primaryColor
         self.window?.rootViewController = launchController
 
-        // Update relays
+        // Start relay updates
         RelayCacheTracker.shared.addObserver(self)
-        RelayCacheTracker.shared.updateRelays(completionHandler: nil)
+        RelayCacheTracker.shared.startPeriodicUpdates()
 
         // Load initial relays
         self.logger?.debug("Load relays")
