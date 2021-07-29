@@ -142,11 +142,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Start periodic relays updates
         RelayCacheTracker.shared.startPeriodicUpdates()
+
+        // Start periodic key rotation
+        TunnelManager.shared.startPeriodicKeyRotation()
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
         // Stop periodic relays updates
         RelayCacheTracker.shared.stopPeriodicUpdates()
+
+        // Stop periodic key rotation
+        TunnelManager.shared.stopPeriodicKeyRotation()
     }
 
     func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {

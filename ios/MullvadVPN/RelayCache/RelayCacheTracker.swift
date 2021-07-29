@@ -50,7 +50,7 @@ enum RelayFetchResult {
 }
 
 class RelayCacheTracker {
-    private let logger = Logger(label: "RelayCacheTracker")
+    private let logger = Logger(label: "RelayCache")
 
     /// Mullvad REST client
     private let rest = MullvadRest()
@@ -96,8 +96,6 @@ class RelayCacheTracker {
         dispatchQueue.async {
             guard !self.isPeriodicUpdatesEnabled else { return }
 
-            self.logger.debug("Start periodic updates")
-
             self.isPeriodicUpdatesEnabled = true
 
             switch RelayCacheIO.read(cacheFileURL: self.cacheFileURL) {
@@ -120,8 +118,6 @@ class RelayCacheTracker {
     func stopPeriodicUpdates() {
         dispatchQueue.async {
             guard self.isPeriodicUpdatesEnabled else { return }
-
-            self.logger.debug("Stop periodic updates")
 
             self.isPeriodicUpdatesEnabled = false
 

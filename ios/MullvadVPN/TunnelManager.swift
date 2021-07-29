@@ -11,6 +11,12 @@ import NetworkExtension
 import Logging
 import WireGuardKit
 
+/// A private key rotation retry interval on failure (in seconds)
+private let kKeyRotationRetryIntervalOnFailure: TimeInterval = 300
+
+/// A private key rotation interval (in days)
+private let kKeyRotationInterval = 4
+
 enum MapConnectionStatusError: ChainedError {
     /// A failure to perform the IPC request because the tunnel IPC is already deallocated
     case missingIpc
@@ -460,7 +466,10 @@ class TunnelManager {
                 finish(result.map { _ in () })
             }
         }
-        operation.addDidFinishBlockObserver { (operation, result) in
+        operation.addDidFinishBlockObserver { [weak self] (operation, result) in
+            if case .success = result {
+                self?.resumePeriodicKeyRotation()
+            }
             completionHandler(result)
         }
 
@@ -659,6 +668,179 @@ class TunnelManager {
         }, completionHandler: completionHandler)
     }
 
+    // MARK: - Key rotation
+
+    /// A timer source used to schedule a delayed key rotation
+    private var keyRotationTimer: DispatchSourceTimer?
+    private var keyRotationStatus: KeyRotationStatus = .off
+
+    private enum KeyRotationStatus {
+        case on
+        case off
+        case paused
+    }
+
+    func startPeriodicKeyRotation() {
+        let operation = AsyncBlockOperation { finish in
+            switch self.keyRotationStatus {
+            case .on, .paused:
+                break
+
+            case .off:
+                if self.tunnelSettings == nil {
+                    self.logger.debug("Start periodic key rotation in paused state")
+
+                    self.keyRotationStatus = .paused
+                } else {
+                    self.logger.debug("Start periodic key rotation")
+
+                    self.keyRotationStatus = .on
+                    self.scheduleKeyRotation()
+                }
+            }
+
+            finish()
+        }
+
+        exclusityController.addOperation(operation, categories: [.keyRotation])
+    }
+
+    func stopPeriodicKeyRotation() {
+        let operation = AsyncBlockOperation { finish in
+            switch self.keyRotationStatus {
+            case .off:
+                break
+
+            case .on, .paused:
+                self.logger.debug("Stop periodic key rotation")
+
+                self.keyRotationStatus = .off
+                self.keyRotationTimer?.cancel()
+            }
+
+            finish()
+        }
+
+        exclusityController.addOperation(operation, categories: [.keyRotation])
+    }
+
+    private func resumePeriodicKeyRotation() {
+        let operation = AsyncBlockOperation { finish in
+            switch self.keyRotationStatus {
+            case .off, .on:
+                break
+
+            case .paused:
+                if self.tunnelSettings != nil {
+                    self.logger.debug("Resume periodic key rotation")
+
+                    self.scheduleKeyRotation()
+                    self.keyRotationStatus = .on
+                }
+            }
+
+            finish()
+        }
+
+        exclusityController.addOperation(operation, categories: [.keyRotation])
+    }
+
+    private func scheduleKeyRotation() {
+        guard let tunnelSettings = tunnelSettings else {
+            return
+        }
+
+        let creationDate = tunnelSettings.interface.privateKey.creationDate
+
+        if let rotationDate = Self.nextRotation(creationDate: creationDate) {
+            scheduleKeyRotationAttempt(fireDate: rotationDate)
+        } else {
+            logger.error("Failed to compute the date for next key rotation")
+            scheduleKeyRotationRetry()
+        }
+    }
+
+    private func scheduleKeyRotationRetry() {
+        let fireDate = Date().addingTimeInterval(kKeyRotationRetryIntervalOnFailure)
+        let formattedDate = ISO8601DateFormatter().string(from: fireDate)
+        logger.debug("Next key rotation retry: \(formattedDate)")
+
+        scheduleKeyRotationAttempt(fireDate: fireDate)
+    }
+
+    private func scheduleKeyRotationAttempt(fireDate: Date) {
+        startKeyRotationTimer(fireDate: fireDate) { [weak self] in
+            self?.rotateKey { [weak self] result in
+                self?.handleKeyRotationResult(result)
+            }
+        }
+    }
+
+    private func handleKeyRotationResult(_ result: Result<Bool, TunnelManager.Error>) {
+        switch result {
+        case .success:
+            scheduleKeyRotation()
+
+        case .failure:
+            scheduleKeyRotationRetry()
+        }
+    }
+
+    private func startKeyRotationTimer(fireDate: Date, block: @escaping () -> Void) {
+        let deadline: DispatchWallTime = .now() + .seconds(Int(fireDate.timeIntervalSinceNow))
+
+        let timer = DispatchSource.makeTimerSource(queue: dispatchQueue)
+        timer.setEventHandler(handler: block)
+        timer.schedule(wallDeadline: deadline)
+        timer.resume()
+
+        keyRotationTimer?.cancel()
+        keyRotationTimer = timer
+    }
+
+    func rotateKey(completionHandler: ((Result<Bool, TunnelManager.Error>) -> Void)?) {
+        let operation = ResultOperation<Bool, TunnelManager.Error> { finish in
+            guard let tunnelSettings = self.tunnelSettings else {
+                finish(.failure(.missingAccount))
+                return
+            }
+
+            guard Self.shouldRotateKey(creationDate: tunnelSettings.interface.privateKey.creationDate) else {
+                self.logger.debug("Skip key rotation")
+                finish(.success(false))
+                return
+            }
+
+            self.logger.debug("Rotate key")
+
+            self.regeneratePrivateKey { result in
+                switch result {
+                case .success:
+                    self.logger.debug("Finished key rotation")
+                    finish(.success(true))
+                case .failure(let error):
+                    self.logger.error(chainedError: error, message: "Failed to rotate the key")
+                    finish(.failure(error))
+                }
+            }
+        }
+
+        operation.addDidFinishBlockObserver { operation, result in
+            completionHandler?(result)
+        }
+
+        exclusityController.addOperation(operation, categories: [.keyRotation])
+    }
+
+    private class func nextRotation(creationDate: Date) -> Date? {
+        return Calendar.current.date(byAdding: .day, value: kKeyRotationInterval, to: creationDate)
+    }
+
+    private class func shouldRotateKey(creationDate: Date) -> Bool {
+        return nextRotation(creationDate: creationDate)
+            .map { $0 <= Date() } ?? false
+    }
+
     // MARK: - Tunnel observeration
 
     /// Add tunnel observer.
@@ -678,6 +860,7 @@ class TunnelManager {
     enum OperationCategory {
         case tunnelControl
         case stateUpdate
+        case keyRotation
     }
 
     private lazy var operationQueue: OperationQueue = {
