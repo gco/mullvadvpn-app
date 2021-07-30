@@ -11,8 +11,6 @@ import StoreKit
 import UserNotifications
 import Logging
 
-private let kBackgroundFetchInterval: TimeInterval = 3600
-
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
@@ -67,7 +65,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         #endif
 
         // Fetch data once an hour
-        application.setMinimumBackgroundFetchInterval(kBackgroundFetchInterval)
+        application.setMinimumBackgroundFetchInterval(ApplicationConfiguration.minimumBackgroundFetchInterval)
 
         // Assign user notification center delegate
         UNUserNotificationCenter.current().delegate = self
@@ -158,13 +156,27 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
         logger?.info("Begin background refresh")
 
-        RelayCacheTracker.shared.updateRelays { fetchResult in
-            DispatchQueue.main.async {
-                let backgroundFetchResult = fetchResult.backgroundFetchResult
+        RelayCacheTracker.shared.updateRelays { relayResult in
+            TunnelManager.shared.rotateKey { rotateResult in
+                let updateRelayFetchResult = relayResult.backgroundFetchResult
+                let rotateFetchResult: UIBackgroundFetchResult
 
-                self.logger?.info("End background refresh with \(backgroundFetchResult.description)")
+                switch rotateResult {
+                case .success(let isNewKey):
+                    rotateFetchResult = isNewKey ? .newData : .noData
+                case .failure(let error):
+                    if case .missingAccount = error {
+                        rotateFetchResult = .noData
+                    } else {
+                        rotateFetchResult = .failed
+                    }
+                }
 
-                completionHandler(backgroundFetchResult)
+                let reducedFetchResult = updateRelayFetchResult.combine(rotateFetchResult)
+
+                self.logger?.debug("End background refresh with \(reducedFetchResult.description)")
+
+                completionHandler(reducedFetchResult)
             }
         }
     }
@@ -832,6 +844,16 @@ extension UIBackgroundFetchResult {
             return "failure"
         @unknown default:
             return "unknown (\(rawValue))"
+        }
+    }
+
+    func combine(_ other: UIBackgroundFetchResult) -> UIBackgroundFetchResult {
+        if self == .failed || other == .failed {
+            return .failed
+        } else if self == .newData || other == .newData {
+            return .newData
+        } else {
+            return self
         }
     }
 }

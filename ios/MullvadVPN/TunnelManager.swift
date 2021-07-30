@@ -294,7 +294,7 @@ class TunnelManager {
         }
     }
 
-    /// The last known public key
+    /// Tunnel setttings
     private(set) var tunnelSettings: TunnelSettings? {
         set {
             stateLock.withCriticalBlock {
@@ -331,7 +331,10 @@ class TunnelManager {
             }
         }
 
-        operation.addDidFinishBlockObserver { (operation, result) in
+        operation.addDidFinishBlockObserver { [weak self] (operation, result) in
+            if case .success = result {
+                self?.resumePeriodicKeyRotation()
+            }
             completionHandler(result)
         }
 
@@ -343,16 +346,6 @@ class TunnelManager {
     /// state.
     func refreshTunnelState(completionHandler: (() -> Void)?) {
         let operation = BlockOperation {
-            // Reload the last known public key
-            if let accountToken = self.accountToken {
-                switch Self.loadTunnelSettings(accountToken: accountToken) {
-                case .success(let keychainEntry):
-                    self.tunnelSettings = keychainEntry.tunnelSettings
-                case .failure(let error):
-                    self.logger.error(chainedError: error, message: "Failed to reload tunnel settings when refreshing tunnel state.")
-                }
-            }
-
             if let status = self.tunnelProvider?.connection.status {
                 self.updateTunnelState(connectionStatus: status)
             }
@@ -563,7 +556,10 @@ class TunnelManager {
 
         }
 
-        operation.addDidFinishBlockObserver { (operation, result) in
+        operation.addDidFinishBlockObserver { [weak self] (operation, result) in
+            if case .success = result {
+                self?.pausePeriodicKeyRotation()
+            }
             completionHandler(result)
         }
 
@@ -609,44 +605,7 @@ class TunnelManager {
 
     func regeneratePrivateKey(completionHandler: @escaping (Result<(), Error>) -> Void) {
         let operation = ResultOperation<(), Error> { (finish) in
-            guard let accountToken = self.accountToken else {
-                finish(.failure(.missingAccount))
-                return
-            }
-
-            let result = Self.loadTunnelSettings(accountToken: accountToken)
-            guard case .success(let keychainEntry) = result else {
-                finish(result.map { _ in () })
-                return
-            }
-
-            let newPrivateKey = PrivateKeyWithMetadata()
-            let oldPublicKeyMetadata = keychainEntry.tunnelSettings.interface
-                .privateKey
-                .publicKeyWithMetadata
-
-            self.replaceWireguardKeyAndUpdateSettings(accountToken: accountToken, oldPublicKey: oldPublicKeyMetadata, newPrivateKey: newPrivateKey) { (result) in
-                guard case .success(let newTunnelSettings) = result else {
-                    finish(result.map { _ in () })
-                    return
-                }
-
-                self.tunnelSettings = newTunnelSettings
-
-                guard let tunnelIpc = self.tunnelIpc else {
-                    finish(.success(()))
-                    return
-                }
-
-                tunnelIpc.reloadTunnelSettings { (ipcResult) in
-                    if case .failure(let error) = ipcResult {
-                        // Ignore Packet Tunnel IPC errors but log them
-                        self.logger.error(chainedError: error, message: "Failed to IPC the tunnel to reload configuration")
-                    }
-
-                    finish(.success(()))
-                }
-            }
+            self.regeneratePrivateKeyHelper(completionHandler: finish)
         }
 
         operation.addDidFinishBlockObserver { (operation, result) in
@@ -654,6 +613,47 @@ class TunnelManager {
         }
 
         exclusityController.addOperation(operation, categories: [.tunnelControl])
+    }
+
+    private func regeneratePrivateKeyHelper(completionHandler: @escaping (Result<(), TunnelManager.Error>) -> Void) {
+        guard let accountToken = self.accountToken else {
+            completionHandler(.failure(.missingAccount))
+            return
+        }
+
+        let result = Self.loadTunnelSettings(accountToken: accountToken)
+        guard case .success(let keychainEntry) = result else {
+            completionHandler(result.map { _ in () })
+            return
+        }
+
+        let newPrivateKey = PrivateKeyWithMetadata()
+        let oldPublicKeyMetadata = keychainEntry.tunnelSettings.interface
+            .privateKey
+            .publicKeyWithMetadata
+
+        self.replaceWireguardKeyAndUpdateSettings(accountToken: accountToken, oldPublicKey: oldPublicKeyMetadata, newPrivateKey: newPrivateKey) { (result) in
+            guard case .success(let newTunnelSettings) = result else {
+                completionHandler(result.map { _ in () })
+                return
+            }
+
+            self.tunnelSettings = newTunnelSettings
+
+            guard let tunnelIpc = self.tunnelIpc else {
+                completionHandler(.success(()))
+                return
+            }
+
+            tunnelIpc.reloadTunnelSettings { (ipcResult) in
+                if case .failure(let error) = ipcResult {
+                    // Ignore Packet Tunnel IPC errors but log them
+                    self.logger.error(chainedError: error, message: "Failed to IPC the tunnel to reload configuration")
+                }
+
+                completionHandler(.success(()))
+            }
+        }
     }
 
     func setRelayConstraints(_ constraints: RelayConstraints, completionHandler: @escaping (Result<(), TunnelManager.Error>) -> Void) {
@@ -670,18 +670,18 @@ class TunnelManager {
 
     // MARK: - Key rotation
 
-    /// A timer source used to schedule a delayed key rotation
-    private var keyRotationTimer: DispatchSourceTimer?
-    private var keyRotationStatus: KeyRotationStatus = .off
-
     private enum KeyRotationStatus {
         case on
         case off
         case paused
     }
 
+    /// A timer source used to schedule a delayed key rotation
+    private var keyRotationTimer: DispatchSourceTimer?
+    private var keyRotationStatus: KeyRotationStatus = .off
+
     func startPeriodicKeyRotation() {
-        let operation = AsyncBlockOperation { finish in
+        dispatchQueue.async {
             switch self.keyRotationStatus {
             case .on, .paused:
                 break
@@ -698,15 +698,11 @@ class TunnelManager {
                     self.scheduleKeyRotation()
                 }
             }
-
-            finish()
         }
-
-        exclusityController.addOperation(operation, categories: [.keyRotation])
     }
 
     func stopPeriodicKeyRotation() {
-        let operation = AsyncBlockOperation { finish in
+        dispatchQueue.async {
             switch self.keyRotationStatus {
             case .off:
                 break
@@ -717,85 +713,7 @@ class TunnelManager {
                 self.keyRotationStatus = .off
                 self.keyRotationTimer?.cancel()
             }
-
-            finish()
         }
-
-        exclusityController.addOperation(operation, categories: [.keyRotation])
-    }
-
-    private func resumePeriodicKeyRotation() {
-        let operation = AsyncBlockOperation { finish in
-            switch self.keyRotationStatus {
-            case .off, .on:
-                break
-
-            case .paused:
-                if self.tunnelSettings != nil {
-                    self.logger.debug("Resume periodic key rotation")
-
-                    self.scheduleKeyRotation()
-                    self.keyRotationStatus = .on
-                }
-            }
-
-            finish()
-        }
-
-        exclusityController.addOperation(operation, categories: [.keyRotation])
-    }
-
-    private func scheduleKeyRotation() {
-        guard let tunnelSettings = tunnelSettings else {
-            return
-        }
-
-        let creationDate = tunnelSettings.interface.privateKey.creationDate
-
-        if let rotationDate = Self.nextRotation(creationDate: creationDate) {
-            scheduleKeyRotationAttempt(fireDate: rotationDate)
-        } else {
-            logger.error("Failed to compute the date for next key rotation")
-            scheduleKeyRotationRetry()
-        }
-    }
-
-    private func scheduleKeyRotationRetry() {
-        let fireDate = Date().addingTimeInterval(kKeyRotationRetryIntervalOnFailure)
-        let formattedDate = ISO8601DateFormatter().string(from: fireDate)
-        logger.debug("Next key rotation retry: \(formattedDate)")
-
-        scheduleKeyRotationAttempt(fireDate: fireDate)
-    }
-
-    private func scheduleKeyRotationAttempt(fireDate: Date) {
-        startKeyRotationTimer(fireDate: fireDate) { [weak self] in
-            self?.rotateKey { [weak self] result in
-                self?.handleKeyRotationResult(result)
-            }
-        }
-    }
-
-    private func handleKeyRotationResult(_ result: Result<Bool, TunnelManager.Error>) {
-        switch result {
-        case .success:
-            scheduleKeyRotation()
-
-        case .failure:
-            scheduleKeyRotationRetry()
-        }
-    }
-
-    private func startKeyRotationTimer(fireDate: Date, block: @escaping () -> Void) {
-        let deadline: DispatchWallTime = .now() + .seconds(Int(fireDate.timeIntervalSinceNow))
-
-        let timer = DispatchSource.makeTimerSource(queue: dispatchQueue)
-        timer.setEventHandler(handler: block)
-        timer.schedule(wallDeadline: deadline)
-        timer.resume()
-
-        keyRotationTimer?.cancel()
-        keyRotationTimer = timer
     }
 
     func rotateKey(completionHandler: ((Result<Bool, TunnelManager.Error>) -> Void)?) {
@@ -813,7 +731,7 @@ class TunnelManager {
 
             self.logger.debug("Rotate key")
 
-            self.regeneratePrivateKey { result in
+            self.regeneratePrivateKeyHelper { result in
                 switch result {
                 case .success:
                     self.logger.debug("Finished key rotation")
@@ -829,7 +747,114 @@ class TunnelManager {
             completionHandler?(result)
         }
 
-        exclusityController.addOperation(operation, categories: [.keyRotation])
+        exclusityController.addOperation(operation, categories: [.tunnelControl])
+    }
+
+    private func resumePeriodicKeyRotation() {
+        dispatchQueue.async {
+            switch self.keyRotationStatus {
+            case .off, .on:
+                break
+
+            case .paused:
+                if self.tunnelSettings != nil {
+                    self.logger.debug("Resume periodic key rotation")
+
+                    self.scheduleKeyRotation()
+                    self.keyRotationStatus = .on
+                }
+            }
+        }
+    }
+
+    private func pausePeriodicKeyRotation() {
+        dispatchQueue.async {
+            switch self.keyRotationStatus {
+            case .on:
+                self.logger.debug("Pause periodic key rotation")
+
+                self.keyRotationTimer?.cancel()
+                self.keyRotationStatus = .paused
+
+            case .off, .paused:
+                break
+            }
+        }
+    }
+
+    private func scheduleKeyRotation() {
+        guard let tunnelSettings = tunnelSettings else {
+            return
+        }
+
+        let creationDate = tunnelSettings.interface.privateKey.creationDate
+
+        if let rotationDate = Self.nextRotation(creationDate: creationDate) {
+            scheduleNextKeyRotation(fireDate: rotationDate)
+        } else {
+            logger.error("Failed to compute the date for next key rotation")
+            scheduleKeyRotationRetry()
+        }
+    }
+
+    private func scheduleNextKeyRotation(fireDate: Date) {
+        let formattedDate = formatDateForLogging(fireDate)
+        logger.debug("Next key rotation attempt: \(formattedDate)")
+
+        scheduleKeyRotationAttempt(fireDate: fireDate)
+    }
+
+    private func scheduleKeyRotationRetry() {
+        let fireDate = Date().addingTimeInterval(kKeyRotationRetryIntervalOnFailure)
+        let formattedDate = formatDateForLogging(fireDate)
+        logger.debug("Next key rotation retry: \(formattedDate)")
+
+        scheduleKeyRotationAttempt(fireDate: fireDate)
+    }
+
+    private func formatDateForLogging(_ date: Date) -> String {
+        return ISO8601DateFormatter().string(from: date)
+    }
+
+    private func scheduleKeyRotationAttempt(fireDate: Date) {
+        startKeyRotationTimer(fireDate: fireDate) { [weak self] in
+            self?.rotateKey { [weak self] result in
+                guard let self = self else { return }
+
+                self.dispatchQueue.async {
+                    self.handleKeyRotationResult(result)
+                }
+            }
+        }
+    }
+
+    private func handleKeyRotationResult(_ result: Result<Bool, TunnelManager.Error>) {
+        switch result {
+        case .success:
+            scheduleKeyRotation()
+
+        case .failure(let error):
+            switch error {
+            case .missingAccount:
+                keyRotationStatus = .paused
+                logger.debug("Pause key rotation as no account was set at the time of rotation")
+
+            default:
+                scheduleKeyRotationRetry()
+            }
+        }
+    }
+
+    private func startKeyRotationTimer(fireDate: Date, block: @escaping () -> Void) {
+        let deadline: DispatchWallTime = .now() + .seconds(Int(fireDate.timeIntervalSinceNow))
+
+        let timer = DispatchSource.makeTimerSource(queue: dispatchQueue)
+        timer.setEventHandler(handler: block)
+        timer.schedule(wallDeadline: deadline)
+        timer.resume()
+
+        keyRotationTimer?.cancel()
+        keyRotationTimer = timer
     }
 
     private class func nextRotation(creationDate: Date) -> Date? {
@@ -860,7 +885,6 @@ class TunnelManager {
     enum OperationCategory {
         case tunnelControl
         case stateUpdate
-        case keyRotation
     }
 
     private lazy var operationQueue: OperationQueue = {
@@ -1221,17 +1245,6 @@ class TunnelManager {
             completionHandler(.success(.disconnecting))
 
         case .reasserting:
-            // Refresh the last known public key on reconnect to cover the possibility of
-            // the key being changed due to key rotation.
-            if let accountToken = self.accountToken {
-                switch Self.loadTunnelSettings(accountToken: accountToken) {
-                case .success(let keychainEntry):
-                    self.tunnelSettings = keychainEntry.tunnelSettings
-                case .failure(let error):
-                    self.logger.error(chainedError: error, message: "Failed to refresh tunnel settings upon receiving the .reasserting tunnel state.")
-                }
-            }
-
             guard let tunnelIpc = tunnelIpc else {
                 completionHandler(.failure(.missingIpc))
                 return

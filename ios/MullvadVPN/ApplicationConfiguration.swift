@@ -37,4 +37,7 @@ extension ApplicationConfiguration {
     static var logFileURLs: [URL] {
         return [mainApplicationLogFileURL, packetTunnelLogFileURL].compactMap { $0 }
     }
+
+    /// Background fetch minimum interval
+    static var minimumBackgroundFetchInterval: TimeInterval = 3600
 }
