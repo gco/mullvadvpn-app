@@ -472,7 +472,7 @@ class TunnelManager {
     /// Remove the account token and remove the active tunnel
     func unsetAccount(completionHandler: @escaping (Result<(), TunnelManager.Error>) -> Void) {
         let operation = ResultOperation<(), TunnelManager.Error> { (finish) in
-            guard let accountToken = self.accountToken else {
+            guard let accountToken = self.accountToken, let tunnelSettings = self.tunnelSettings else {
                 finish(.failure(.missingAccount))
                 return
             }
@@ -525,31 +525,20 @@ class TunnelManager {
                 })
             }
 
-            switch Self.loadTunnelSettings(accountToken: accountToken) {
-            case .success(let keychainEntry):
-                let publicKey = keychainEntry.tunnelSettings
-                    .interface
-                    .privateKey
-                    .publicKeyWithMetadata
-                    .publicKey
+            let publicKey = tunnelSettings
+                .interface
+                .privateKey
+                .publicKeyWithMetadata
+                .publicKey
 
-                self.removeWireguardKeyFromServer(accountToken: accountToken, publicKey: publicKey) { (result) in
-                    switch result {
-                    case .success(let isRemoved):
-                        self.logger.warning("Removed the WireGuard key from server: \(isRemoved)")
+            self.removeWireguardKeyFromServer(accountToken: accountToken, publicKey: publicKey) { (result) in
+                switch result {
+                case .success(let isRemoved):
+                    self.logger.warning("Removed the WireGuard key from server: \(isRemoved)")
 
-                    case .failure(let error):
-                        self.logger.error(chainedError: error, message: "Unset account error")
-                    }
-
-                    removeTunnel()
+                case .failure(let error):
+                    self.logger.error(chainedError: error, message: "Unset account error")
                 }
-
-            case .failure(let error):
-                // Ignore Keychain errors because that normally means that the Keychain
-                // configuration was already removed and we shouldn't be blocking the
-                // user from logging out
-                self.logger.error(chainedError: error, message: "Unset account error")
 
                 removeTunnel()
             }
@@ -569,21 +558,20 @@ class TunnelManager {
     func verifyPublicKey(completionHandler: @escaping (Result<Bool, Error>) -> Void) {
         let makePayloadOperation = ResultOperation<PublicKeyPayload<TokenPayload<EmptyPayload>>, Error> {
             () -> Result<PublicKeyPayload<TokenPayload<EmptyPayload>>, Error> in
-            guard let accountToken = self.accountToken else {
+            guard let accountToken = self.accountToken, let tunnelSettings = self.tunnelSettings else {
                 return .failure(.missingAccount)
             }
 
-            return Self.loadTunnelSettings(accountToken: accountToken)
-                .map { (keychainEntry) -> PublicKeyPayload<TokenPayload<EmptyPayload>> in
-                    let publicKey = keychainEntry.tunnelSettings.interface
-                        .privateKey
-                        .publicKeyWithMetadata.publicKey.rawValue
+            let publicKey = tunnelSettings.interface
+                .privateKey
+                .publicKeyWithMetadata.publicKey.rawValue
 
-                    return PublicKeyPayload(
-                        pubKey: publicKey,
-                        payload: TokenPayload(token: keychainEntry.accountToken, payload: EmptyPayload())
-                    )
-            }
+            let payload = PublicKeyPayload(
+                pubKey: publicKey,
+                payload: TokenPayload(token: accountToken, payload: EmptyPayload())
+            )
+
+            return .success(payload)
         }
 
         let getPubkeyOperation = self.rest.getWireguardKey()
@@ -616,19 +604,13 @@ class TunnelManager {
     }
 
     private func regeneratePrivateKeyHelper(completionHandler: @escaping (Result<(), TunnelManager.Error>) -> Void) {
-        guard let accountToken = self.accountToken else {
+        guard let accountToken = self.accountToken, let tunnelSettings = self.tunnelSettings else {
             completionHandler(.failure(.missingAccount))
             return
         }
 
-        let result = Self.loadTunnelSettings(accountToken: accountToken)
-        guard case .success(let keychainEntry) = result else {
-            completionHandler(result.map { _ in () })
-            return
-        }
-
         let newPrivateKey = PrivateKeyWithMetadata()
-        let oldPublicKeyMetadata = keychainEntry.tunnelSettings.interface
+        let oldPublicKeyMetadata = tunnelSettings.interface
             .privateKey
             .publicKeyWithMetadata
 
