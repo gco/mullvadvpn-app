@@ -1303,11 +1303,10 @@ class TunnelManager {
 
     /// Retrieve the existing `TunnelSettings` or create the new ones
     private class func makeTunnelSettings(accountToken: String) -> Result<TunnelSettings, TunnelManager.Error> {
-        return TunnelSettingsManager.load(searchTerm: .accountToken(accountToken))
+        return Self.loadTunnelSettings(accountToken: accountToken)
             .map { $0.tunnelSettings }
-            .flatMapError { (error) -> Result<TunnelSettings, TunnelManager.Error> in
-                // Return default tunnel configuration if the config is not found in Keychain
-                if case .lookupEntry(.itemNotFound) = error {
+            .flatMapError { error in
+                if case .readTunnelSettings(.lookupEntry(.itemNotFound)) = error {
                     let defaultConfiguration = TunnelSettings()
 
                     return TunnelSettingsManager
@@ -1315,9 +1314,9 @@ class TunnelManager {
                         .mapError { .addTunnelSettings($0) }
                         .map { defaultConfiguration }
                 } else {
-                    return .failure(.readTunnelSettings(error))
+                    return .failure(error)
                 }
-        }
+            }
     }
 
     private class func setupTunnelProvider(accountToken: String ,tunnels: [TunnelProviderManagerType]?) -> Result<TunnelProviderManagerType, Error> {
