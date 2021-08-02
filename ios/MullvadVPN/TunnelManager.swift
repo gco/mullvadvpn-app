@@ -251,7 +251,7 @@ class TunnelManager {
     // MARK: - Internal variables
 
     private let logger = Logger(label: "TunnelManager")
-    private let dispatchQueue = DispatchQueue(label: "net.mullvad.MullvadVPN.TunnelManager")
+    private let dispatchQueue = DispatchQueue(label: "TunnelManager")
 
     private let rest = MullvadRest()
     private var tunnelProvider: TunnelProviderManagerType?
