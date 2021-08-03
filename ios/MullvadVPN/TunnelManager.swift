@@ -325,7 +325,9 @@ class TunnelManager {
                     if let error = error {
                         finish(.failure(.loadAllVPNConfigurations(error)))
                     } else {
-                        self.initializeManager(accountToken: accountToken, tunnels: tunnels, completionHandler: finish)
+                        self.initializeManager(accountToken: accountToken, tunnels: tunnels) { result in
+                            finish(result)
+                        }
                     }
                 }
             }
@@ -593,7 +595,9 @@ class TunnelManager {
 
     func regeneratePrivateKey(completionHandler: @escaping (Result<(), Error>) -> Void) {
         let operation = ResultOperation<(), Error> { (finish) in
-            self.regeneratePrivateKeyHelper(completionHandler: finish)
+            self.regeneratePrivateKeyHelper { result in
+                finish(result)
+            }
         }
 
         operation.addDidFinishBlockObserver { (operation, result) in
@@ -603,7 +607,7 @@ class TunnelManager {
         exclusityController.addOperation(operation, categories: [.tunnelControl])
     }
 
-    private func regeneratePrivateKeyHelper(completionHandler: @escaping (Result<(), TunnelManager.Error>) -> Void) {
+    private func regeneratePrivateKeyHelper(completionHandler: @escaping (Result<(), Error>) -> Void) {
         guard let accountToken = self.accountToken, let tunnelSettings = self.tunnelSettings else {
             completionHandler(.failure(.missingAccount))
             return

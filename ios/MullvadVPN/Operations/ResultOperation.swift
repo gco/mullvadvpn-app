@@ -10,9 +10,10 @@ import Foundation
 
 class ResultOperation<Success, Failure: Error>: AsyncOperation, OutputOperation {
     typealias Output = Result<Success, Failure>
+    typealias Completion = OutputOperationCompletion<Output>
 
     private enum Executor {
-        case callback((@escaping (Result<Success, Failure>) -> Void) -> Void)
+        case callback((Completion) -> Void)
         case transform(() -> Result<Success, Failure>)
     }
 
@@ -22,7 +23,7 @@ class ResultOperation<Success, Failure: Error>: AsyncOperation, OutputOperation 
         self.executor = executor
     }
 
-    convenience init(_ block: @escaping (@escaping (Output) -> Void) -> Void) {
+    convenience init(_ block: @escaping (Completion) -> Void) {
         self.init(.callback(block))
     }
 
@@ -33,9 +34,7 @@ class ResultOperation<Success, Failure: Error>: AsyncOperation, OutputOperation 
     override func main() {
         switch executor {
         case .callback(let block):
-            block { [weak self] (result) in
-                self?.finish(with: result)
-            }
+            block(Completion(operation: self))
 
         case .transform(let block):
             self.finish(with: block())
