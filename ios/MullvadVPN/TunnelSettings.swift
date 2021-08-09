@@ -17,6 +17,10 @@ struct InterfaceSettings: Codable, Equatable {
     var addresses: [IPAddressRange]
     var dnsSettings: DNSSettings
 
+    var publicKey: PublicKey {
+        return privateKey.publicKeyWithMetadata.publicKey
+    }
+
     private enum CodingKeys: String, CodingKey {
         case privateKey, addresses, dnsSettings
     }
