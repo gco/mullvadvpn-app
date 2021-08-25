@@ -69,6 +69,12 @@ private class PresentAlertOperation: AsyncOperation {
         super.init()
     }
 
+    deinit {
+        if let dismissalObserver = dismissalObserver {
+            NotificationCenter.default.removeObserver(dismissalObserver)
+        }
+    }
+
     override func main() {
         DispatchQueue.main.async {
             self.dismissalObserver = NotificationCenter.default.addObserver(
