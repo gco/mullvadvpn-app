@@ -12,12 +12,12 @@ import UIKit
 private let kUIAlertControllerDidDissmissNotification = Notification.Name("UIAlertControllerDidDismiss")
 
 class AlertPresenter {
-    private enum ExclusivityCategory {
-        case exclusive
-    }
-
-    private let operationQueue = OperationQueue()
-    private lazy var exclusivityController = ExclusivityController<ExclusivityCategory>(operationQueue: operationQueue)
+    private let operationQueue: OperationQueue = {
+        let operationQueue = OperationQueue()
+        operationQueue.name = "AlertPresenterQueue"
+        operationQueue.maxConcurrentOperationCount = 1
+        return operationQueue
+    }()
 
     private static let initClass: Void = {
         /// Swizzle `viewDidDisappear` on `UIAlertController` in order to be able to
@@ -37,7 +37,7 @@ class AlertPresenter {
             presentCompletion: presentCompletion
         )
 
-        exclusivityController.addOperation(operation, categories: [.exclusive])
+        operationQueue.addOperation(operation)
     }
 
 }
