@@ -380,7 +380,7 @@ class MullvadRest {
     func pushWireguardKey() -> RestSessionEndpoint<TokenPayload<PushWireguardKeyRequest>, WireguardAddressesResponse> {
         return RestSessionEndpoint(session: session, endpoint: Self.pushWireguardKey())
     }
-    
+
     func replaceWireguardKey() -> RestSessionEndpoint<TokenPayload<ReplaceWireguardKeyRequest>, WireguardAddressesResponse> {
         return RestSessionEndpoint(session: session, endpoint: Self.replaceWireguardKey())
     }

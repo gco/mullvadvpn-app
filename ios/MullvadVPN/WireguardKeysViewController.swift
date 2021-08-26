@@ -212,7 +212,7 @@ class WireguardKeysViewController: UIViewController, TunnelObserver {
             }
             .onFailure { [weak self] error in
                 guard let self = self else { return }
-                
+
                 let alertController = UIAlertController(
                     title: NSLocalizedString("VERIFY_KEY_FAILURE_ALERT_TITLE", tableName: "WireguardKeys", comment: ""),
                     message: error.errorChainDescription,

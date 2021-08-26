@@ -87,5 +87,5 @@ class TunnelStateNotificationProvider: NotificationProvider, InAppNotificationPr
         }
     }
 
-    
+
 }

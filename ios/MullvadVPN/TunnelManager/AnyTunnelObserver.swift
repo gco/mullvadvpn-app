@@ -17,7 +17,7 @@ class AnyTunnelObserver: WeakObserverBox, TunnelObserver {
     init<T: TunnelObserver>(_ observer: T) {
         inner = observer
     }
-    
+
     func tunnelManager(_ manager: TunnelManager, didUpdateTunnelState tunnelState: TunnelState) {
         inner?.tunnelManager(manager, didUpdateTunnelState: tunnelState)
     }
