@@ -259,13 +259,17 @@ class TunnelManager {
                             .flatMap { tunnelProvider in
                                 self.setTunnelProvider(tunnelProvider: tunnelProvider)
 
-                                let options: [String: NSObject] =  [
-                                    PacketTunnelOptions.relaySelectorResult: try! JSONEncoder().encode(selectorResult) as NSData
-                                ]
+                                var tunnelOptions = PacketTunnelOptions()
+
+                                _ = Result { try tunnelOptions.setSelectorResult(selectorResult) }
+                                    .mapError { error -> Swift.Error in
+                                        self.logger.error(chainedError: AnyChainedError(error), message: "Failed to encode relay selector result.")
+                                        return error
+                                    }
 
                                 self.tunnelState = .connecting(selectorResult.tunnelConnectionInfo)
 
-                                return Result { try tunnelProvider.connection.startVPNTunnel(options: options) }
+                                return Result { try tunnelProvider.connection.startVPNTunnel(options: tunnelOptions.rawOptions()) }
                                     .mapError { error in
                                         return .startVPNTunnel(error)
                                     }

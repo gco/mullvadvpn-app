@@ -21,11 +21,17 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
 
     override func startTunnel(options: [String: Any]?, completionHandler: @escaping (Error?) -> Void) {
         DispatchQueue.main.async {
-            let appSelectorResult = (options?[PacketTunnelOptions.relaySelectorResult] as? Data).map { data in
-                return try! JSONDecoder().decode(RelaySelectorResult.self, from: data)
-            }
+            let tunnelOptions = PacketTunnelOptions(rawOptions: options ?? [:])
+            let appSelectorResult = Result { try tunnelOptions.getSelectorResult() }
+                .mapError { error in
+                    providerLogger.error(
+                        chainedError: AnyChainedError(error),
+                        message: "Failed to decode relay selector result passed from the app. Will continue by picking new relay."
+                    )
+                    return error
+                }
 
-            if let appSelectorResult = appSelectorResult {
+            if let appSelectorResult = appSelectorResult.flattenValue {
                 self.connectionInfo = appSelectorResult.tunnelConnectionInfo
             } else {
                 self.connectionInfo = self.pickRelay()?.tunnelConnectionInfo
