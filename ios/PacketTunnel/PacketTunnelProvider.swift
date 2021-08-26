@@ -32,7 +32,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         })
     }()
 
-    /// Tunnel state
+    /// Tunnel connection info
     private var tunnelConnectionInfo: TunnelConnectionInfo? {
         didSet {
             if let tunnelConnectionInfo = tunnelConnectionInfo {
