@@ -113,22 +113,21 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
             .receive(on: dispatchQueue)
             .mapThen { request -> Result<Data?, PacketTunnelProviderError>.Promise in
+                self.providerLogger.debug("handleAppMessage: \(request)")
+
                 switch request {
                 case .reloadTunnelSettings:
-                    self.providerLogger.debug("handleAppMessage: reload tunnel settings")
                     _ = self.reloadTunnelSettings().observe { _ in }
                     return .success(nil)
 
                 case .tunnelConnectionInfo:
-                    self.providerLogger.debug("handleAppMessage: get tunnel connection info")
-
                     return PacketTunnelIpcHandler.encodeResponse(self.tunnelConnectionInfo)
                         .mapError { PacketTunnelProviderError.ipcHandler($0) }
                         .map { data -> Data? in
                             return .some(data)
                         }
                         .flatMapError { error in
-                            self.providerLogger.error(chainedError: error, message: "Failed to encode the app message response")
+                            self.providerLogger.error(chainedError: error, message: "Failed to encode the app message response for \(request)")
                             return .success(nil)
                         }
                         .asPromise()

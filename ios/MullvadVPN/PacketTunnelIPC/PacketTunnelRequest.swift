@@ -9,12 +9,21 @@
 import Foundation
 
 /// A enum describing the kinds of requests that `PacketTunnelProvider` handles
-enum PacketTunnelRequest: Int, Codable, RawRepresentable {
+enum PacketTunnelRequest: Int, Codable, RawRepresentable, CustomStringConvertible {
     /// Request the tunnel to reload settings
     case reloadTunnelSettings
 
     /// Request the tunnel connection info
     case tunnelConnectionInfo
+
+    var description: String {
+        switch self {
+        case .reloadTunnelSettings:
+            return "reloadTunnelSettings"
+        case .tunnelConnectionInfo:
+            return "tunnelConnectionInfo"
+        }
+    }
 
     private enum CodingKeys: String, CodingKey {
         case type
