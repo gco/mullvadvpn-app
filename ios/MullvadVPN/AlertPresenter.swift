@@ -9,7 +9,7 @@
 import Foundation
 import UIKit
 
-private let kUIAlertControllerDidDissmissNotification = Notification.Name("UIAlertControllerDidDismiss")
+private let kUIAlertControllerDidDismissNotification = Notification.Name("UIAlertControllerDidDismiss")
 
 class AlertPresenter {
     private let operationQueue: OperationQueue = {
@@ -49,7 +49,7 @@ fileprivate extension UIAlertController {
         alertPresenter_viewDidDisappear(animated)
 
         if presentingViewController == nil {
-            NotificationCenter.default.post(name: kUIAlertControllerDidDissmissNotification, object: self)
+            NotificationCenter.default.post(name: kUIAlertControllerDidDismissNotification, object: self)
         }
     }
 }
@@ -78,7 +78,7 @@ private class PresentAlertOperation: AsyncOperation {
     override func main() {
         DispatchQueue.main.async {
             self.dismissalObserver = NotificationCenter.default.addObserver(
-                forName: kUIAlertControllerDidDissmissNotification,
+                forName: kUIAlertControllerDidDismissNotification,
                 object: self.alertController,
                 queue: nil,
                 using: { [weak self] (note) in
