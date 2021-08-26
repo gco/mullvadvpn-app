@@ -36,7 +36,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
     private var relayConstraints: RelayConstraints?
-    private let alertPresenter = AlertPresenter()
 
     private let notificationManager = NotificationManager()
 

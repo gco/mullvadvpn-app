@@ -156,54 +156,6 @@ class ConnectViewController: UIViewController, MKMapViewDelegate, RootContainmen
         // no-op
     }
 
-    private func presentTunnelError(_ error: TunnelManager.Error, alertTitle: String) {
-//        let alertController = UIAlertController(
-//            title: alertTitle,
-//            message: error.errorChainDescription,
-//            preferredStyle: .alert
-//        )
-//        alertController.addAction(
-//            UIAlertAction(
-//                title: NSLocalizedString(
-//                    "TUNNEL_ERROR_ALERT_OK_BUTTON",
-//                    tableName: "AppDelegate",
-//                    comment: "Dismiss button in tunnel error alert."
-//                ),
-//                style: .cancel
-//            )
-//        )
-//
-//        self.alertPresenter.enqueue(alertController, presentingController: self.rootContainer!)
-    }
-
-    private func connectTunnel() {
-        TunnelManager.shared.startTunnel()
-//            .receive(on: .main)
-//            .onFailure { error in
-//                self.logger?.error(chainedError: error, message: "Failed to start the VPN tunnel")
-//                self.presentTunnelError(error, alertTitle: NSLocalizedString(
-//                    "START_VPN_TUNNEL_ERROR_ALERT_TITLE",
-//                    tableName: "AppDelegate",
-//                    value: "Failed to start the VPN tunnel",
-//                    comment: ""
-//                ))
-//            }
-    }
-
-    private func disconnectTunnel() {
-        TunnelManager.shared.stopTunnel()
-//            .receive(on: .main)
-//            .onFailure { error in
-//                self.logger?.error(chainedError: error, message: "Failed to stop the VPN tunnel")
-//                self.presentTunnelError(error, alertTitle: NSLocalizedString(
-//                    "STOP_VPN_TUNNEL_ERROR_ALERT_TITLE",
-//                    tableName: "AppDelegate",
-//                    value: "Failed to stop the VPN tunnel",
-//                    comment: ""
-//                ))
-//            }
-    }
-
     // MARK: - Private
 
     private func updateUserInterfaceForTunnelStateChange() {
