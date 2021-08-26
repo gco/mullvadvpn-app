@@ -134,3 +134,10 @@ extension Result {
         }
     }
 }
+
+extension Result where Success: AnyOptional {
+    /// Same as `value` except it flattens `T??` producing single Optional (`T?`)
+    var flattenValue: Success.Wrapped? {
+        return value?.asConcreteType().flatMap { $0 }
+    }
+}
