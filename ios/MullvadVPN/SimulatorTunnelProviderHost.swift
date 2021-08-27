@@ -19,17 +19,17 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
     private let providerLogger = Logger(label: "SimulatorTunnelProviderHost")
     private let dispatchQueue = DispatchQueue(label: "SimulatorTunnelProviderHostQueue")
 
-    override func startTunnel(options: [String: Any]?, completionHandler: @escaping (Error?) -> Void) {
-        DispatchQueue.main.async {
+    override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
+        dispatchQueue.async {
             let tunnelOptions = PacketTunnelOptions(rawOptions: options ?? [:])
             let appSelectorResult = Result { try tunnelOptions.getSelectorResult() }
-                .mapError { error in
-                    providerLogger.error(
-                        chainedError: AnyChainedError(error),
-                        message: "Failed to decode relay selector result passed from the app. Will continue by picking new relay."
-                    )
-                    return error
-                }
+
+            if let error = appSelectorResult.error {
+                self.providerLogger.error(
+                    chainedError: AnyChainedError(error),
+                    message: "Failed to decode relay selector result passed from the app. Will continue by picking new relay."
+                )
+            }
 
             if let appSelectorResult = appSelectorResult.flattenValue {
                 self.connectionInfo = appSelectorResult.tunnelConnectionInfo
@@ -42,7 +42,7 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
     }
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        DispatchQueue.main.async {
+        dispatchQueue.async {
             self.connectionInfo = nil
 
             completionHandler()
@@ -78,17 +78,6 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
             .observe { completion in
                 completionHandler?(completion.unwrappedValue ?? nil)
             }
-    }
-
-    private func replyAppMessage<T: Codable>(_ response: T, completionHandler: ((Data?) -> Void)?) {
-        switch PacketTunnelIpcHandler.encodeResponse(response) {
-        case .success(let data):
-            completionHandler?(data)
-
-        case .failure(let error):
-            self.providerLogger.error(chainedError: error)
-            completionHandler?(nil)
-        }
     }
 
     private func pickRelay() -> RelaySelectorResult? {

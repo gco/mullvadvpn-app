@@ -115,7 +115,7 @@ class SimulatorTunnelProviderDelegate {
         }
     }
 
-    func startTunnel(options: [String: Any]?, completionHandler: @escaping (Error?) -> Void) {
+    func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         completionHandler(nil)
     }
 
@@ -164,7 +164,9 @@ class SimulatorVPNConnection: NSObject, VPNConnectionProtocol {
     private var _status: NEVPNStatus = .disconnected
     private(set) var status: NEVPNStatus {
         get {
-            lock.withCriticalBlock { _status }
+            return lock.withCriticalBlock {
+                return _status
+            }
         }
         set {
             lock.withCriticalBlock {
@@ -223,7 +225,7 @@ class SimulatorVPNConnection: NSObject, VPNConnectionProtocol {
     func stopVPNTunnel() {
         status = .disconnecting
 
-        SimulatorTunnelProvider.shared.delegate.stopTunnel(with: .none) {
+        SimulatorTunnelProvider.shared.delegate.stopTunnel(with: .userInitiated) {
             self.status = .disconnected
         }
     }
