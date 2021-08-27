@@ -318,6 +318,24 @@ struct RestSessionEndpoint<Input, Response> where Input: RestPayload {
     func operation(payload: Input?) -> RestOperation<Input, Response> {
         return endpoint.operation(session: session, payload: payload)
     }
+
+    func promise(payload: Input) -> Result<Response, RestError>.Promise {
+        return Promise { resolver in
+            let taskResult = self.dataTask(payload: payload) { result in
+                resolver.resolve(value: result)
+            }
+
+            switch taskResult {
+            case .success(let task):
+                resolver.setCancelHandler {
+                    task.cancel()
+                }
+                task.resume()
+            case .failure(let error):
+                resolver.resolve(value: .failure(error))
+            }
+        }
+    }
 }
 
 // MARK: - REST interface
@@ -362,7 +380,7 @@ class MullvadRest {
     func pushWireguardKey() -> RestSessionEndpoint<TokenPayload<PushWireguardKeyRequest>, WireguardAddressesResponse> {
         return RestSessionEndpoint(session: session, endpoint: Self.pushWireguardKey())
     }
-
+    
     func replaceWireguardKey() -> RestSessionEndpoint<TokenPayload<ReplaceWireguardKeyRequest>, WireguardAddressesResponse> {
         return RestSessionEndpoint(session: session, endpoint: Self.replaceWireguardKey())
     }
@@ -377,6 +395,19 @@ class MullvadRest {
 
     func sendProblemReport() -> RestSessionEndpoint<ProblemReportRequest, ()> {
         return RestSessionEndpoint(session: session, endpoint: Self.sendProblemReport())
+    }
+
+    /// Create a boilerplate `URLRequest` before injecting the payload
+    private func makeEndpointURLRequest(method: HttpMethod, endpoint: URL) -> URLRequest {
+        var request = URLRequest(
+            url: endpoint,
+            cachePolicy: .useProtocolCachePolicy,
+            timeoutInterval: kNetworkTimeout
+        )
+        request.httpShouldHandleCookies = false
+        request.addValue("application/json", forHTTPHeaderField: HttpHeader.contentType)
+        request.httpMethod = method.rawValue
+        return request
     }
 }
 
