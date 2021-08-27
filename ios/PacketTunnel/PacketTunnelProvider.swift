@@ -26,12 +26,22 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     /// WireGuard adapter
     private lazy var adapter: WireGuardAdapter = {
         return WireGuardAdapter(with: self, logHandler: { [weak self] (logLevel, message) in
-            self?.tunnelLogger.log(level: logLevel.loggerLevel, "\(message)")
+            self?.dispatchQueue.async {
+                self?.tunnelLogger.log(level: logLevel.loggerLevel, "\(message)")
+            }
         })
     }()
 
-    /// Tunnel connection information
-    private var tunnelConnection: TunnelConnectionInfo?
+    /// Tunnel state
+    private var tunnelConnectionInfo: TunnelConnectionInfo? {
+        didSet {
+            if let tunnelConnectionInfo = tunnelConnectionInfo {
+                self.providerLogger.debug("Set tunnel relay to \(tunnelConnectionInfo.hostname)")
+            } else {
+                self.providerLogger.debug("Unset tunnel relay")
+            }
+        }
+    }
 
     override init() {
         initLoggingSystem(bundleIdentifier: Bundle.main.bundleIdentifier!)
@@ -41,70 +51,91 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
-        dispatchQueue.async {
-            self.providerLogger.info("Start the tunnel")
+        var appSelectorResult: RelaySelectorResult?
 
-            switch self.makeConfiguration() {
-            case .success(let tunnelConfiguration):
-                self.tunnelConnection = tunnelConfiguration.selectorResult.tunnelConnectionInfo
+        if let data = options?[PacketTunnelOptions.relaySelectorResult] as? Data {
+            appSelectorResult = try! JSONDecoder().decode(RelaySelectorResult.self, from: data)
 
-                self.adapter.start(tunnelConfiguration: tunnelConfiguration.wgTunnelConfig) { (error) in
-                    self.dispatchQueue.async {
-                        let error = error.map { PacketTunnelProviderError.startWireguardAdapter($0) }
-                        if let error = error {
-                            self.providerLogger.error(chainedError: error)
-                        }
-                        completionHandler(error)
-                    }
-                }
-
-            case .failure(let error):
-                completionHandler(error)
-            }
+            providerLogger.debug("Start the tunnel via app, connect to \(appSelectorResult!.tunnelConnectionInfo.hostname)")
+        } else if options?[PacketTunnelOptions.isOnDemand] as? Bool == .some(true) {
+            providerLogger.debug("Start the tunnel via on-demand rule")
+        } else {
+            providerLogger.debug("Start the tunnel via system")
         }
+
+        _ = makeConfiguration(appSelectorResult)
+            .asPromise()
+            .receive(on: dispatchQueue)
+            .mapThen { tunnelConfiguration in
+                let tunnelConnectionInfo = tunnelConfiguration.selectorResult.tunnelConnectionInfo
+                self.tunnelConnectionInfo = tunnelConnectionInfo
+
+                return self.adapter.start(tunnelConfiguration: tunnelConfiguration.wgTunnelConfig)
+                    .mapError { error in
+                        return PacketTunnelProviderError.startWireguardAdapter(error)
+                    }
+                    .receive(on: self.dispatchQueue)
+            }
+            .onSuccess {
+                self.providerLogger.debug("Started the tunnel")
+            }
+            .onFailure { error in
+                self.providerLogger.error(chainedError: error, message: "Failed to start the tunnel")
+            }
+            .observe { completion in
+                completionHandler(completion.unwrappedValue?.error)
+            }
     }
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        dispatchQueue.async {
-            self.providerLogger.info("Stop the tunnel. Reason: \(reason)")
+        providerLogger.debug("Stop the tunnel: \(reason)")
 
-            self.tunnelConnection = nil
-            self.adapter.stop { (error) in
-                self.dispatchQueue.async {
-                    if let error = error {
-                        let error = PacketTunnelProviderError.stopWireguardAdapter(error)
-
-                        self.providerLogger.error(chainedError: error)
-                    } else {
-                        self.providerLogger.info("Stopped the tunnel")
-                    }
-                    completionHandler()
-                }
+        _ = adapter.stop()
+            .receive(on: self.dispatchQueue)
+            .mapError { error in
+                return PacketTunnelProviderError.stopWireguardAdapter(error)
             }
-        }
+            .onFailure { error in
+                self.providerLogger.error(chainedError: error, message: "Failed to stop the tunnel gracefully")
+            }
+            .observe { _ in
+                self.providerLogger.debug("Stopped the tunnel")
+                completionHandler()
+            }
     }
 
     override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
-        dispatchQueue.async {
-            let decodeResult = PacketTunnelIpcHandler.decodeRequest(messageData: messageData)
-                .mapError { PacketTunnelProviderError.ipcHandler($0) }
-
-            switch decodeResult {
-            case .success(let request):
+        _ = PacketTunnelIpcHandler.decodeRequest(messageData: messageData)
+            .mapError { PacketTunnelProviderError.ipcHandler($0) }
+            .asPromise()
+            .onFailure { error in
+                self.providerLogger.error(chainedError: error, message: "Failed to decode the app message request")
+            }
+            .receive(on: dispatchQueue)
+            .mapThen { request -> Result<Data?, PacketTunnelProviderError>.Promise in
                 switch request {
                 case .reloadTunnelSettings:
-                    self.reloadTunnelSettings { (result) in
-                        self.replyAppMessage(result.map { true }, completionHandler: completionHandler)
-                    }
+                    self.providerLogger.debug("handleAppMessage: reload tunnel settings")
+                    _ = self.reloadTunnelSettings().observe { _ in }
+                    return .success(nil)
 
-                case .tunnelInformation:
-                    self.replyAppMessage(.success(self.tunnelConnection), completionHandler: completionHandler)
+                case .tunnelConnectionInfo:
+                    self.providerLogger.debug("handleAppMessage: get tunnel connection info")
+
+                    return PacketTunnelIpcHandler.encodeResponse(self.tunnelConnectionInfo)
+                        .mapError { PacketTunnelProviderError.ipcHandler($0) }
+                        .map { data -> Data? in
+                            return .some(data)
+                        }
+                        .flatMapError { error in
+                            self.providerLogger.error(chainedError: error, message: "Failed to encode the app message response")
+                            return .success(nil)
+                        }
+                        .asPromise()
                 }
-
-            case .failure(let error):
-                self.replyAppMessage(Result<String, PacketTunnelProviderError>.failure(error), completionHandler: completionHandler)
+            }.observe { completion in
+                completionHandler?(completion.unwrappedValue?.value ?? nil)
             }
-        }
     }
 
     override func sleep(completionHandler: @escaping () -> Void) {
@@ -118,27 +149,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     // MARK: - Private
 
-    private func replyAppMessage<T: Codable>(_ result: Result<T, PacketTunnelProviderError>, completionHandler: ((Data?) -> Void)?) {
-        let result = result.flatMap { (response) -> Result<Data, PacketTunnelProviderError> in
-            return PacketTunnelIpcHandler.encodeResponse(response: response)
-                .mapError { PacketTunnelProviderError.ipcHandler($0) }
-        }
-
-        switch result {
-        case .success(let data):
-            completionHandler?(data)
-
-        case .failure(let error):
-            self.providerLogger.error(chainedError: error)
-            completionHandler?(nil)
-        }
-    }
-
-    private func makeConfiguration() -> Result<PacketTunnelConfiguration, PacketTunnelProviderError> {
-        if let ref = protocolConfiguration.passwordReference {
-            return Self.readTunnelSettings(keychainReference: ref)
+    private func makeConfiguration(_ appSelectorResult: RelaySelectorResult? = nil) -> Result<PacketTunnelConfiguration, PacketTunnelProviderError> {
+        return protocolConfiguration.passwordReference.map { data in
+            return Self.readTunnelSettings(keychainReference: data)
                 .flatMap { tunnelSettings in
-                    return Self.selectRelayEndpoint(relayConstraints: tunnelSettings.relayConstraints)
+                    return (appSelectorResult.map { .success($0) } ?? Self.selectRelayEndpoint(relayConstraints: tunnelSettings.relayConstraints))
                         .map { (selectorResult) -> PacketTunnelConfiguration in
                             return PacketTunnelConfiguration(
                                 tunnelSettings: tunnelSettings,
@@ -146,33 +161,32 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                             )
                         }
                 }
-        } else {
-            return .failure(.missingKeychainConfigurationReference)
-        }
+        } ?? .failure(.missingKeychainConfigurationReference)
     }
 
-    private func reloadTunnelSettings(completionHandler: @escaping (Result<(), PacketTunnelProviderError>) -> Void) {
-        providerLogger.info("Reload tunnel settings")
+    private func reloadTunnelSettings() -> Result<(), PacketTunnelProviderError>.Promise {
+        providerLogger.debug("Reload tunnel settings")
 
-        switch makeConfiguration() {
-        case .success(let packetTunnelConfig):
-            tunnelConnection = packetTunnelConfig.selectorResult.tunnelConnectionInfo
+        return makeConfiguration()
+            .asPromise()
+            .mapThen { packetTunnelConfig in
+                let tunnelConnectionInfo = packetTunnelConfig.selectorResult.tunnelConnectionInfo
+                let oldTunnelConnectionInfo = self.tunnelConnectionInfo
+                self.tunnelConnectionInfo = tunnelConnectionInfo
 
-            adapter.update(tunnelConfiguration: packetTunnelConfig.wgTunnelConfig) { (error) in
-                self.dispatchQueue.async {
-                    let result: Result<(), PacketTunnelProviderError>
-                    if let error = error {
-                        result = .failure(.updateWireguardConfiguration(error))
-                    } else {
-                        result = .success(())
+                return self.adapter.update(tunnelConfiguration: packetTunnelConfig.wgTunnelConfig)
+                    .receive(on: self.dispatchQueue)
+                    .mapError { error in
+                        return PacketTunnelProviderError.updateWireguardConfiguration(error)
                     }
-                    completionHandler(result)
-                }
+                    .onSuccess { _ in
+                        self.providerLogger.debug("Updated WireGuard configuration")
+                    }
+                    .onFailure { error in
+                        self.tunnelConnectionInfo = oldTunnelConnectionInfo
+                        self.providerLogger.error(chainedError: error, message: "Failed to update WireGuard configuration")
+                    }
             }
-
-        case .failure(let error):
-            completionHandler(.failure(error))
-        }
     }
 
     /// Read tunnel settings from Keychain
@@ -317,6 +331,60 @@ extension WireGuardLogLevel {
     }
 }
 
+extension WireGuardAdapter {
+    func start(tunnelConfiguration: TunnelConfiguration) -> Result<(), WireGuardAdapterError>.Promise {
+        return Result<(), WireGuardAdapterError>.Promise { resolver in
+            self.start(tunnelConfiguration: tunnelConfiguration) { error in
+                resolver.resolve(value: error.map { .failure($0) } ?? .success(()))
+            }
+        }
+    }
+
+    func stop() -> Result<(), WireGuardAdapterError>.Promise {
+        return Result<(), WireGuardAdapterError>.Promise { resolver in
+            self.stop { error in
+                resolver.resolve(value: error.map { .failure($0) } ?? .success(()))
+            }
+        }
+    }
+
+    func update(tunnelConfiguration: TunnelConfiguration) -> Result<(), WireGuardAdapterError>.Promise {
+        return Result<(), WireGuardAdapterError>.Promise { resolver in
+            self.update(tunnelConfiguration: tunnelConfiguration) { error in
+                resolver.resolve(value: error.map { .failure($0) } ?? .success(()))
+            }
+        }
+    }
+}
+
+extension WireGuardAdapterError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .cannotLocateTunnelFileDescriptor:
+            return "Failure to locate tunnel file descriptor."
+
+        case .invalidState:
+            return "Failure to perform an operation in such state."
+
+        case .dnsResolution(let resolutionErrors):
+            let detailedErrorDescription = resolutionErrors
+                .enumerated()
+                .map { index, dnsResolutionError in
+                    return "\(index): \(dnsResolutionError.address) \(dnsResolutionError.errorDescription ?? "???")"
+                }
+                .joined(separator: "\n")
+
+            return "Failure to resolve endpoints:\n\(detailedErrorDescription)"
+
+        case .setNetworkSettings:
+            return "Failure to set network settings"
+
+        case .startWireGuardBackend(let code):
+            return "Failure to start WireGuard backend (error code: \(code))"
+        }
+    }
+}
+
 extension MullvadEndpoint {
     var ipv4RelayEndpoint: Endpoint {
         return Endpoint(host: .ipv4(ipv4Relay.ip), port: .init(integerLiteral: ipv4Relay.port))
@@ -328,3 +396,4 @@ extension MullvadEndpoint {
         return Endpoint(host: .ipv6(ipv6Relay.ip), port: .init(integerLiteral: ipv6Relay.port))
     }
 }
+
