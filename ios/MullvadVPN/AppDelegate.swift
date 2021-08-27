@@ -166,7 +166,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         notificationManager.delegate = connectController?.notificationController
         notificationManager.notificationProviders = [
-            AccountExpiryNotificationProvider()
+            AccountExpiryNotificationProvider(),
+            TunnelStateNotificationProvider()
         ]
         notificationManager.updateNotifications()
 
