@@ -15,22 +15,24 @@ import Logging
 
 class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
 
-    private enum ExclusivityCategory {
-        case exclusive
-    }
-
     private var connectionInfo: TunnelConnectionInfo?
     private let providerLogger = Logger(label: "SimulatorTunnelProviderHost")
-
-    private let operationQueue = OperationQueue()
-    private lazy var exclusivityController = ExclusivityController<ExclusivityCategory>(operationQueue: operationQueue)
+    private let dispatchQueue = DispatchQueue(label: "SimulatorTunnelProviderHostQueue")
 
     override func startTunnel(options: [String: Any]?, completionHandler: @escaping (Error?) -> Void) {
-        let startOperation = makeStartOperation()
-        startOperation.addDidFinishBlockObserver(queue: .main) { _ in
+        DispatchQueue.main.async {
+            let appSelectorResult = (options?[PacketTunnelOptions.relaySelectorResult] as? Data).map { data in
+                return try! JSONDecoder().decode(RelaySelectorResult.self, from: data)
+            }
+
+            if let appSelectorResult = appSelectorResult {
+                self.connectionInfo = appSelectorResult.tunnelConnectionInfo
+            } else {
+                self.connectionInfo = self.pickRelay()?.tunnelConnectionInfo
+            }
+
             completionHandler(nil)
         }
-        exclusivityController.addOperation(startOperation, categories: [.exclusive])
     }
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
@@ -42,40 +44,38 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
     }
 
     override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
-        DispatchQueue.main.async {
-            let result = PacketTunnelIpcHandler.decodeRequest(messageData: messageData)
-            switch result {
-            case .success(let request):
-                switch request {
-                case .reloadTunnelSettings:
-                    let operationObserver = OperationBlockObserver<AsyncBlockOperation>(
-                        queue: .main,
-                        willExecute: { _ in
-                            self.reasserting = true
-                        },
-                        willFinish: { _ in
-                            self.reasserting = false
-                        },
-                        didFinish: { _ in
-                            self.replyAppMessage(true, completionHandler: completionHandler)
-                        })
-
-                    let startOperation = self.makeStartOperation()
-                    startOperation.addObserver(operationObserver)
-                    self.exclusivityController.addOperation(startOperation, categories: [.exclusive])
-
-                case .tunnelInformation:
-                    self.replyAppMessage(self.connectionInfo, completionHandler: completionHandler)
-                }
-
-            case .failure:
-                completionHandler?(nil)
+        PacketTunnelIpcHandler.decodeRequest(messageData: messageData)
+            .asPromise()
+            .receive(on: dispatchQueue)
+            .onFailure { error in
+                self.providerLogger.error(chainedError: error, message: "Failed to decode the IPC request.")
             }
-        }
+            .success()
+            .mapThen(defaultValue: nil) { request in
+                switch request {
+                case .tunnelConnectionInfo:
+                    return PacketTunnelIpcHandler.encodeResponse(self.connectionInfo)
+                        .asPromise()
+                        .onFailure { error in
+                            self.providerLogger.error(chainedError: error, message: "Failed to encode tunnel connection info IPC response.")
+                        }
+                        .success()
+
+                case .reloadTunnelSettings:
+                    self.reasserting = true
+                    self.connectionInfo = self.pickRelay()?.tunnelConnectionInfo
+                    self.reasserting = false
+
+                    return .resolved(nil)
+                }
+            }
+            .observe { completion in
+                completionHandler?(completion.unwrappedValue ?? nil)
+            }
     }
 
     private func replyAppMessage<T: Codable>(_ response: T, completionHandler: ((Data?) -> Void)?) {
-        switch PacketTunnelIpcHandler.encodeResponse(response: response) {
+        switch PacketTunnelIpcHandler.encodeResponse(response) {
         case .success(let data):
             completionHandler?(data)
 
@@ -85,44 +85,28 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
         }
     }
 
-    private func makeStartOperation() -> AsyncBlockOperation {
-        return AsyncBlockOperation { [weak self] (finish) in
-            guard let self = self else {
-                finish()
-                return
-            }
+    private func pickRelay() -> RelaySelectorResult? {
+        guard let result = RelayCacheTracker.shared.read().await().unwrappedValue else { return nil }
 
-            self.pickRelay { (selectorResult) in
-                DispatchQueue.main.async {
-                    self.connectionInfo = selectorResult?.tunnelConnectionInfo
-                    finish()
-                }
-            }
-        }
-    }
+        switch result {
+        case .success(let cachedRelays):
+            let keychainReference = self.protocolConfiguration.passwordReference!
 
-    private func pickRelay(completion: @escaping (RelaySelectorResult?) -> Void) {
-        RelayCacheTracker.shared.read { (result) in
-            switch result {
-            case .success(let cachedRelays):
-                let keychainReference = self.protocolConfiguration.passwordReference!
-                switch TunnelSettingsManager.load(searchTerm: .persistentReference(keychainReference)) {
-                case .success(let entry):
-                    let relayConstraints = entry.tunnelSettings.relayConstraints
-                    let selectorResult = RelaySelector.evaluate(
-                        relays: cachedRelays.relays,
-                        constraints: relayConstraints
-                    )
-                    completion(selectorResult)
-
-                case .failure(let error):
-                    self.providerLogger.error(chainedError: error)
-                    completion(nil)
-                }
+            switch TunnelSettingsManager.load(searchTerm: .persistentReference(keychainReference)) {
+            case .success(let entry):
+                return RelaySelector.evaluate(
+                    relays: cachedRelays.relays,
+                    constraints: entry.tunnelSettings.relayConstraints
+                )
             case .failure(let error):
-                self.providerLogger.error(chainedError: error)
-                completion(nil)
+                self.providerLogger.error(chainedError: error, message: "Failed to load tunnel settings when picking relay")
+
+                return nil
             }
+
+        case .failure(let error):
+            self.providerLogger.error(chainedError: error, message: "Failed to read relays when picking relay")
+            return nil
         }
     }
 
