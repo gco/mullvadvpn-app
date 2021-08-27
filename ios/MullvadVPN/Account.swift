@@ -167,22 +167,20 @@ class Account {
     /// Perform the logout by erasing the account token and expiry from the application preferences.
     func logout(completionHandler: @escaping (Result<(), Error>) -> Void) {
         let operation = ResultOperation<(), Error> { (finish) in
-            TunnelManager.shared.unsetAccount { (result) in
-                DispatchQueue.main.async {
-                    switch result {
-                    case .success:
-                        self.removeFromPreferences()
-                        self.observerList.forEach { (observer) in
-                            observer.accountDidLogout(self)
-                        }
-
-                        finish(.success(()))
-
-                    case .failure(let error):
-                        finish(.failure(.tunnelConfiguration(error)))
+            TunnelManager.shared.unsetAccount()
+                .receive(on: .main)
+                .mapError { error in
+                    return Error.tunnelConfiguration(error)
+                }
+                .onSuccess { _ in
+                    self.removeFromPreferences()
+                    self.observerList.forEach { (observer) in
+                        observer.accountDidLogout(self)
                     }
                 }
-            }
+                .observe { completion in
+                    finish(completion.unwrappedValue!)
+                }
         }
 
         operation.addDidFinishBlockObserver(queue: .main) { (operation, result) in
@@ -242,20 +240,18 @@ class Account {
     }
 
     private func setupTunnel(accountToken: String, expiry: Date, completionHandler: @escaping (Result<(), Error>) -> Void) {
-        TunnelManager.shared.setAccount(accountToken: accountToken) { (managerResult) in
-            DispatchQueue.main.async {
-                switch managerResult {
-                case .success:
-                    self.token = accountToken
-                    self.expiry = expiry
-
-                    completionHandler(.success(()))
-
-                case .failure(let error):
-                    completionHandler(.failure(.tunnelConfiguration(error)))
-                }
+        TunnelManager.shared.setAccount(accountToken: accountToken)
+            .receive(on: .main)
+            .mapError { error in
+                return Error.tunnelConfiguration(error)
             }
-        }
+            .onSuccess { _ in
+                self.token = accountToken
+                self.expiry = expiry
+            }
+            .observe { completion in
+                completionHandler(completion.unwrappedValue!)
+            }
     }
 
     private func removeFromPreferences() {
