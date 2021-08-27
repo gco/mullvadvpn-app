@@ -22,10 +22,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private let simulatorTunnelProvider = SimulatorTunnelProviderHost()
     #endif
 
-    #if DEBUG
-    private let packetTunnelLogForwarder = LogStreamer<UTF8>(fileURLs: [ApplicationConfiguration.packetTunnelLogFileURL!])
-    #endif
-
     private var rootContainer: RootContainerViewController?
     private var splitViewController: CustomSplitViewController?
     private var selectLocationViewController: SelectLocationViewController?
@@ -51,13 +47,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         initLoggingSystem(bundleIdentifier: Bundle.main.bundleIdentifier!)
 
         self.logger = Logger(label: "AppDelegate")
-
-        #if DEBUG
-        let stdoutStream = TextFileOutputStream.standardOutputStream()
-        packetTunnelLogForwarder.start { (str) in
-            stdoutStream.write("\(str)\n")
-        }
-        #endif
 
         #if targetEnvironment(simulator)
         // Configure mock tunnel provider on simulator
