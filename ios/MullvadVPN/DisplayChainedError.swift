@@ -256,6 +256,20 @@ extension TunnelManager.Error: DisplayChainedError {
                 value: "Internal error: missing account",
                 comment: ""
             )
+        case .readRelays:
+            return NSLocalizedString(
+                "READ_RELAYS_ERROR",
+                tableName: "TunnelManager",
+                value: "Failed to read relays.",
+                comment: ""
+            )
+        case .cannotSatisfyRelayConstraints:
+            return NSLocalizedString(
+                "CANNOT_SATISFY_RELAY_CONSTRAINTS_ERROR",
+                tableName: "TunnelManager",
+                value: "Failed to satisfy relay constraints.",
+                comment: ""
+            )
         }
     }
 }
