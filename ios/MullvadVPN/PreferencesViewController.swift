@@ -48,18 +48,22 @@ class PreferencesViewController: UITableViewController, TunnelObserver {
         navigationItem.largeTitleDisplayMode = .always
 
         TunnelManager.shared.addObserver(self)
-        self.dnsSettings = TunnelManager.shared.tunnelSettings?.interface.dnsSettings
+        self.dnsSettings = TunnelManager.shared.tunnelInfo?.tunnelSettings.interface.dnsSettings
 
         setupDataSource()
     }
 
     // MARK: - TunnelObserver
 
-    func tunnelStateDidChange(tunnelState: TunnelState) {
+    func tunnelManager(_ manager: TunnelManager, didUpdateTunnelState tunnelState: TunnelState) {
         // no-op
     }
 
-    func tunnelSettingsDidChange(tunnelSettings: TunnelSettings?) {
+    func tunnelManager(_ manager: TunnelManager, didFailWithError error: TunnelManager.Error) {
+        // no-op
+    }
+
+    func tunnelManager(_ manager: TunnelManager, didUpdateTunnelSettings tunnelSettings: TunnelSettings?, accountToken: String?) {
         DispatchQueue.main.async {
             if tunnelSettings?.interface.dnsSettings != self.dnsSettings {
                 self.dnsSettings = tunnelSettings?.interface.dnsSettings
@@ -103,11 +107,10 @@ class PreferencesViewController: UITableViewController, TunnelObserver {
     private func saveDNSSettings() {
         guard let dnsSettings = dnsSettings else { return }
 
-        TunnelManager.shared.setDNSSettings(dnsSettings) { [weak self] (result) in
-            if case .failure(let error) = result {
+        _ = TunnelManager.shared.setDNSSettings(dnsSettings)
+            .onFailure { [weak self] error in
                 self?.logger.error(chainedError: error, message: "Failed to save DNS settings")
             }
-        }
     }
 
 }
