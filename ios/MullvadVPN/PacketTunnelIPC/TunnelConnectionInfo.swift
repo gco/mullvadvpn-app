@@ -15,12 +15,3 @@ struct TunnelConnectionInfo: Codable, Equatable {
     let hostname: String
     let location: Location
 }
-
-extension TunnelConnectionInfo: CustomDebugStringConvertible {
-    var debugDescription: String {
-        return "{ ipv4Relay: \(String(reflecting: ipv4Relay)), " +
-               "ipv6Relay: \(String(reflecting: ipv6Relay)), " +
-               "hostname: \(String(reflecting: hostname))," +
-               "location: \(String(reflecting: location)) }"
-    }
-}

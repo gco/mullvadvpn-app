@@ -13,8 +13,8 @@ enum PacketTunnelRequest: Int, Codable, RawRepresentable {
     /// Request the tunnel to reload settings
     case reloadTunnelSettings
 
-    /// Request the tunnel to return the connection information
-    case tunnelInformation
+    /// Request the tunnel connection info
+    case tunnelConnectionInfo
 
     private enum CodingKeys: String, CodingKey {
         case type

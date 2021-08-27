@@ -45,7 +45,7 @@ extension PacketTunnelIpcHandler {
         }
     }
 
-    static func encodeResponse<T>(response: T) -> Result<Data, Error> where T: Codable {
+    static func encodeResponse<T>(_ response: T) -> Result<Data, Error> where T: Codable {
         do {
             let encoder = JSONEncoder()
             let value = try encoder.encode(PacketTunnelResponse(value: response))

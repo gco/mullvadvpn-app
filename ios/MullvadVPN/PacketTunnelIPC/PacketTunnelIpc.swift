@@ -45,12 +45,20 @@ class PacketTunnelIpc {
         self.session = session
     }
 
-    func reloadTunnelSettings(completionHandler: @escaping (Result<(), Error>) -> Void) {
-        send(message: .reloadTunnelSettings, completionHandler: completionHandler)
+    func reloadTunnelSettings() -> Result<(), Error>.Promise {
+        return Result<(), Error>.Promise { resolver in
+            self.send(message: .reloadTunnelSettings) { result in
+                resolver.resolve(value: result)
+            }
+        }
     }
 
-    func getTunnelInformation(completionHandler: @escaping (Result<TunnelConnectionInfo, Error>) -> Void) {
-        send(message: .tunnelInformation, completionHandler: completionHandler)
+    func getTunnelConnectionInfo() -> Result<TunnelConnectionInfo?, Error>.Promise {
+        return Result<TunnelConnectionInfo?, Error>.Promise { resolver in
+            self.send(message: .tunnelConnectionInfo) { result in
+                resolver.resolve(value: result)
+            }
+        }
     }
 
     private class func encodeRequest(message: PacketTunnelRequest) -> Result<Data, Error> {
