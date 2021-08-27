@@ -9,7 +9,7 @@
 import Foundation
 import Network
 
-struct RelaySelectorResult {
+struct RelaySelectorResult: Codable {
     var endpoint: MullvadEndpoint
     var relay: ServerRelay
     var location: Location
