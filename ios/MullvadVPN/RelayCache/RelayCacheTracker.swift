@@ -146,6 +146,14 @@ class RelayCacheTracker {
         }
     }
 
+    func read() -> Result<CachedRelays, RelayCacheError>.Promise {
+        return Result<CachedRelays, RelayCacheError>.Promise { resolver in
+            return self.read { result in
+                resolver.resolve(value: result)
+            }
+        }
+    }
+
     // MARK: - Observation
 
     func addObserver<T: RelayCacheObserver>(_ observer: T) {
