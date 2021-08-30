@@ -25,7 +25,7 @@ class ProblemReportViewController: UIViewController, UITextFieldDelegate, Condit
             redactContainerPathsForSecurityGroupIdentifiers: [securityGroupIdentifier]
         )
 
-        report.addLogFiles(fileURLs: ApplicationConfiguration.logFileURLs, includeLogBackup: true)
+        report.addLogFiles(fileURLs: ApplicationConfiguration.logFileURLs, includeLogBackups: true)
 
         return report
     }()
