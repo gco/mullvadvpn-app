@@ -103,8 +103,7 @@ class Account {
     }
 
     private let rest = MullvadRest()
-    private let operationQueue = OperationQueue()
-    private lazy var exclusivityController = ExclusivityController<ExclusivityCategory>(operationQueue: operationQueue)
+    private let dispatchQueue = DispatchQueue(label: "AccountQueue")
 
     var isLoggedIn: Bool {
         return token != nil
@@ -116,11 +115,9 @@ class Account {
     }
 
     func loginWithNewAccount(completionHandler: @escaping (Result<AccountResponse, Error>) -> Void) {
-        let operation = rest.createAccount().operation(payload: EmptyPayload())
-
-        operation.addDidFinishBlockObserver(queue: .main) { (operation, result) in
-            switch result {
-            case .success(let response):
+        _ = rest.createAccount()
+            .receive(on: .main)
+            .onSuccess { response in
                 self.setupTunnel(accountToken: response.token, expiry: response.expires) { (result) in
                     if case .success = result {
                         self.observerList.forEach { (observer) in
@@ -129,24 +126,19 @@ class Account {
                     }
                     completionHandler(result.map { response })
                 }
-
-            case .failure(let error):
+            }
+            .onFailure { error in
                 completionHandler(.failure(.createAccount(error)))
             }
-        }
-
-        exclusivityController.addOperation(operation, categories: [.exclusive])
+            .block(on: dispatchQueue)
     }
 
     /// Perform the login and save the account token along with expiry (if available) to the
     /// application preferences.
     func login(with accountToken: String, completionHandler: @escaping (Result<AccountResponse, Error>) -> Void) {
-        let operation = rest.getAccountExpiry()
-            .operation(payload: .init(token: accountToken, payload: EmptyPayload()))
-
-        operation.addDidFinishBlockObserver(queue: .main) { (operation, result) in
-            switch result {
-            case .success(let response):
+        _ = rest.getAccountExpiry(token: accountToken)
+            .receive(on: .main)
+            .onSuccess { response in
                 self.setupTunnel(accountToken: response.token, expiry: response.expires) { (result) in
                     if case .success = result {
                         self.observerList.forEach { (observer) in
@@ -155,59 +147,44 @@ class Account {
                     }
                     completionHandler(result.map { response })
                 }
-
-            case .failure(let error):
+            }
+            .onFailure { error in
                 completionHandler(.failure(.verifyAccount(error)))
             }
-        }
-
-        exclusivityController.addOperation(operation, categories: [.exclusive])
+            .block(on: dispatchQueue)
     }
 
     /// Perform the logout by erasing the account token and expiry from the application preferences.
     func logout(completionHandler: @escaping (Result<(), Error>) -> Void) {
-        let operation = ResultOperation<(), Error> { (finish) in
-            TunnelManager.shared.unsetAccount()
-                .receive(on: .main)
-                .mapError { error in
-                    return Error.tunnelConfiguration(error)
+        _ = TunnelManager.shared.unsetAccount()
+            .receive(on: .main)
+            .mapError { error in
+                return Error.tunnelConfiguration(error)
+            }
+            .onSuccess { _ in
+                self.removeFromPreferences()
+                self.observerList.forEach { (observer) in
+                    observer.accountDidLogout(self)
                 }
-                .onSuccess { _ in
-                    self.removeFromPreferences()
-                    self.observerList.forEach { (observer) in
-                        observer.accountDidLogout(self)
-                    }
-                }
-                .observe { completion in
-                    finish(completion.unwrappedValue!)
-                }
-        }
-
-        operation.addDidFinishBlockObserver(queue: .main) { (operation, result) in
-            completionHandler(result)
-        }
-
-        exclusivityController.addOperation(operation, categories: [.exclusive])
+            }
+            .observe { completion in
+                completionHandler(completion.unwrappedValue!)
+            }
+            .block(on: dispatchQueue)
     }
 
     /// Forget that user was logged in, but do not attempt to unset account in `TunnelManager`.
     /// This function is used in cases where the tunnel or tunnel settings are corrupt.
     func forget(completionHandler: @escaping () -> Void) {
-        let operation = AsyncBlockOperation { (finish) in
-            DispatchQueue.main.async {
+        dispatchQueue.async {
+            DispatchQueue.main.sync {
                 self.removeFromPreferences()
                 self.observerList.forEach { (observer) in
                     observer.accountDidLogout(self)
                 }
-                finish()
+                completionHandler()
             }
         }
-
-        operation.addDidFinishBlockObserver(queue: .main) { (operation) in
-            completionHandler()
-        }
-
-        exclusivityController.addOperation(operation, categories: [.exclusive])
     }
 
     func updateAccountExpiry() {
