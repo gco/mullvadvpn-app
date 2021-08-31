@@ -18,327 +18,53 @@ private let kRestBaseURL = URL(string: "https://api.mullvad.net/app/v1")!
 private let kNetworkTimeout: TimeInterval = 10
 
 /// HTTP method
-enum HttpMethod: String {
-    case get = "GET"
-    case post = "POST"
-    case delete = "DELETE"
+struct HTTPMethod: RawRepresentable {
+    static let get = HTTPMethod(rawValue: "GET")
+    static let post = HTTPMethod(rawValue: "POST")
+    static let delete = HTTPMethod(rawValue: "DELETE")
+
+    let rawValue: String
+    init(rawValue: String) {
+        self.rawValue = rawValue.uppercased()
+    }
 }
 
 // HTTP status codes
-enum HttpStatus {
-    static let ok = 200
-    static let created = 201
-    static let noContent = 204
-    static let notModified = 304
+struct HTTPStatus: RawRepresentable, Equatable {
+    static let ok = HTTPStatus(rawValue: 200)
+    static let created = HTTPStatus(rawValue: 201)
+    static let noContent = HTTPStatus(rawValue: 204)
+    static let notModified = HTTPStatus(rawValue: 304)
+
+    let rawValue: Int
+    init(rawValue value: Int) {
+        rawValue = value
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        return lhs.rawValue == rhs.rawValue
+    }
+
+    static func == (lhs: Self, rhs: Int) -> Bool {
+        return lhs.rawValue == rhs
+    }
+
+    static func == (lhs: Int, rhs: Self) -> Bool {
+        return lhs == rhs.rawValue
+    }
+
+    static func ~= (lhs: Self, rhs: Int) -> Bool {
+        return lhs.rawValue == rhs
+    }
 }
 
 /// HTTP headers
-enum HttpHeader {
+enum HTTPHeader {
     static let authorization = "Authorization"
     static let contentType = "Content-Type"
     static let etag = "ETag"
     static let ifNoneMatch = "If-None-Match"
 }
-
-/// Types conforming to this protocol can participate in forming the `URLRequest` created by
-/// `RestEndpoint`.
-protocol RestPayload {
-    func inject(into request: inout URLRequest) throws
-}
-
-/// Any `Encodable` type can be injected as JSON payload
-extension RestPayload where Self: Encodable {
-    func inject(into request: inout URLRequest) throws {
-        request.httpBody = try RestCoding.makeJSONEncoder().encode(self)
-    }
-}
-
-// MARK: - Operations
-
-final class RestOperation<Input, Response>: AsyncOperation, InputOperation, OutputOperation
-    where Input: RestPayload
-{
-    typealias Output = Result<Response, RestError>
-
-    private let endpoint: RestEndpoint<Input, Response>
-    private let session: URLSession
-    private var task: URLSessionTask?
-
-    init(endpoint: RestEndpoint<Input, Response>, session: URLSession, input: Input? = nil) {
-        self.endpoint = endpoint
-        self.session = session
-
-        super.init()
-        self.input = input
-    }
-
-    override func main() {
-        guard let payload = self.input else {
-            finish()
-            return
-        }
-
-        let result = endpoint.dataTask(session: session, payload: payload) { [weak self] (result) in
-            self?.finish(with: result)
-        }
-
-        switch result {
-        case .success(let task):
-            self.task = task
-            task.resume()
-        case .failure(let error):
-            finish(with: .failure(error))
-        }
-    }
-
-    override func operationDidCancel() {
-        task?.cancel()
-        task = nil
-    }
-}
-
-// MARK: - Response handlers
-
-/// Types conforming to this protocol can be used as response handlers to decode the raw server response to the data
-/// type expected by the caller.
-protocol ResponseHandler {
-    associatedtype Response
-
-    /// Decode the response.
-    /// The implementation is expected to throw `BadResponseError` in case of failure to handle the HTTP response,
-    /// or any other `Error` in case of failure to decode the data.
-    func decodeResponse(_ httpResponse: HTTPURLResponse, data: Data) -> Result<Response, ResponseHandlerError>
-}
-
-enum ResponseHandlerError: Error {
-    /// A failure to handle the response due to unexpected status code
-    case badResponse(_ statusCode: Int)
-
-    /// A failure to decode data
-    case decodeData(Error)
-}
-
-/// A placeholder error used to indicate that the server returned unexpected response.
-fileprivate struct BadResponseError: Error {
-    let statusCode: Int
-}
-
-/// Type-erasing response handler.
-struct AnyResponseHandler<Response>: ResponseHandler {
-    private let decodeResponseBlock: (HTTPURLResponse, Data) -> Result<Response, ResponseHandlerError>
-
-    init<T: ResponseHandler>(_ wrappedHandler: T) where T.Response == Response {
-        self.decodeResponseBlock = { (response, data) -> Result<Response, ResponseHandlerError> in
-            return wrappedHandler.decodeResponse(response, data: data)
-        }
-    }
-
-    init(block: @escaping (HTTPURLResponse, Data) -> Result<Response, ResponseHandlerError>) {
-        self.decodeResponseBlock = block
-    }
-
-    func decodeResponse(_ httpResponse: HTTPURLResponse, data: Data) -> Result<Response, ResponseHandlerError> {
-        return self.decodeResponseBlock(httpResponse, data)
-    }
-}
-
-/// A REST response handler that decides when response contains the successful result based on the given status code and
-/// decodes the value in response.
-struct DecodingResponseHandler<Response: Decodable>: ResponseHandler {
-    private let expectedStatus: Int
-
-    init(expectedStatus: Int) {
-        self.expectedStatus = expectedStatus
-    }
-
-    func decodeResponse(_ httpResponse: HTTPURLResponse, data: Data) -> Result<Response, ResponseHandlerError> {
-        if httpResponse.statusCode == expectedStatus {
-            return MullvadRest.decodeSuccessResponse(Response.self, from: data)
-        } else {
-            return .failure(.badResponse(httpResponse.statusCode))
-        }
-    }
-}
-
-/// A REST response handler that decides when response contains the successful result based on the given status code but
-/// never decodes the value in response as it anticipates it to be empty.
-struct EmptyResponseHandler: ResponseHandler {
-    private let expectedStatus: Int
-
-    init(expectedStatus: Int) {
-        self.expectedStatus = expectedStatus
-    }
-
-    func decodeResponse(_ httpResponse: HTTPURLResponse, data: Data) -> Result<(), ResponseHandlerError> {
-        if httpResponse.statusCode == expectedStatus {
-            return .success(())
-        } else {
-            return .failure(.badResponse(httpResponse.statusCode))
-        }
-    }
-}
-
-/// A REST response handler that takes into account ETag and 200 and 304 response codes to produce the output result.
-struct HttpCacheDecodingResponseHandler<WrappedType: Decodable>: ResponseHandler {
-    typealias Response = HttpResourceCacheResponse<WrappedType>
-
-    private let etag: String?
-
-    init(etag: String?) {
-        self.etag = etag
-    }
-
-    func decodeResponse(_ httpResponse: HTTPURLResponse, data: Data) -> Result<Response, ResponseHandlerError> {
-        switch httpResponse.statusCode {
-        case HttpStatus.ok:
-            return MullvadRest.decodeSuccessResponse(WrappedType.self, from: data)
-                .map { (relays) -> Response in
-                    let etag = httpResponse.value(forCaseInsensitiveHTTPHeaderField: HttpHeader.etag)
-
-                    return .newContent(etag, relays)
-                }
-
-        case HttpStatus.notModified where etag != nil:
-            return .success(.notModified)
-
-        case let statusCode:
-            return .failure(.badResponse(statusCode))
-        }
-    }
-}
-
-// MARK: - Endpoints
-
-/// A struct that describes the REST endpoint, including the expected input and output
-struct RestEndpoint<Input, Response> where Input: RestPayload {
-    let endpointURL: URL
-    let httpMethod: HttpMethod
-    let makeResponseHandler: (Input) -> AnyResponseHandler<Response>
-
-    init<Handler: ResponseHandler>(endpointURL: URL, httpMethod: HttpMethod, responseHandlerFactory: @escaping (Input) -> Handler) where Handler.Response == Response {
-        self.endpointURL = endpointURL
-        self.httpMethod = httpMethod
-        self.makeResponseHandler = { (input) -> AnyResponseHandler<Response> in
-            return AnyResponseHandler(responseHandlerFactory(input))
-        }
-    }
-
-    /// Create `URLSessionDataTask` that automatically parses the HTTP response and returns the
-    /// expected response type or error upon completion.
-    func dataTask(session: URLSession, payload: Input, completionHandler: @escaping (Result<Response, RestError>) -> Void) -> Result<URLSessionDataTask, RestError> {
-        return makeURLRequest(payload: payload).map { (request) -> URLSessionDataTask in
-            return session.dataTask(with: request) { (responseData, urlResponse, error) in
-                let handler = self.makeResponseHandler(payload)
-                let result = Self.handleURLResponse(urlResponse, data: responseData, error: error, responseHandler: handler)
-                completionHandler(result)
-            }
-        }
-    }
-
-    /// Create `RestOperation` that automatically parses the response and sets the expected output
-    /// type or error upon completion.
-    func operation(session: URLSession, payload: Input?) -> RestOperation<Input, Response> {
-        return RestOperation(endpoint: self, session: session, input: payload)
-    }
-
-    /// Create `URLRequest` that can be used to send an HTTP request
-    private func makeURLRequest(payload: Input) -> Result<URLRequest, RestError> {
-        var request = makeEndpointURLRequest()
-        do {
-            try payload.inject(into: &request)
-
-            return .success(request)
-        } catch {
-            return .failure(.encodePayload(error))
-        }
-    }
-
-    /// Create a boilerplate `URLRequest` before injecting the payload
-    private func makeEndpointURLRequest() -> URLRequest {
-        var request = URLRequest(
-            url: endpointURL,
-            cachePolicy: .useProtocolCachePolicy,
-            timeoutInterval: kNetworkTimeout
-        )
-        request.httpShouldHandleCookies = false
-        request.addValue("application/json", forHTTPHeaderField: HttpHeader.contentType)
-        request.httpMethod = httpMethod.rawValue
-        return request
-    }
-
-    /// A private HTTP response handler
-    private static func handleURLResponse(_ urlResponse: URLResponse?, data: Data?, error: Error?, responseHandler: AnyResponseHandler<Response>) -> Result<Response, RestError> {
-        if let error = error {
-            let networkError = error as? URLError ?? URLError(.unknown)
-
-            return .failure(.network(networkError))
-        }
-
-        guard let httpResponse = urlResponse as? HTTPURLResponse else {
-            return .failure(.network(URLError(.unknown)))
-        }
-
-        let data = data ?? Data()
-
-        return responseHandler.decodeResponse(httpResponse, data: data)
-            .flatMapError { (error) -> Result<Response, RestError> in
-                switch error {
-                case .badResponse:
-                    // Try decoding the server error response in case when unexpected response is returned
-                    return MullvadRest.decodeErrorResponse(httpResponse: httpResponse, data: data)
-                        .flatMap { (serverErrorResponse) -> Result<Response, RestError> in
-                            return .failure(.server(serverErrorResponse))
-                        }
-
-                case .decodeData(let decodingError):
-                    return .failure(.decodeSuccessResponse(decodingError))
-                }
-            }
-    }
-}
-
-/// A convenience class for `RestEndpoint` that transparently provides it with the `URLSession`
-struct RestSessionEndpoint<Input, Response> where Input: RestPayload {
-    let session: URLSession
-    let endpoint: RestEndpoint<Input, Response>
-
-    init(session: URLSession, endpoint: RestEndpoint<Input, Response>) {
-        self.session = session
-        self.endpoint = endpoint
-    }
-
-    /// Create `URLSessionDataTask` that automatically parses the HTTP response and returns the
-    /// expected response type or error upon completion.
-    func dataTask(payload: Input, completionHandler: @escaping (Result<Response, RestError>) -> Void) -> Result<URLSessionDataTask, RestError> {
-        return endpoint.dataTask(session: session, payload: payload, completionHandler: completionHandler)
-    }
-
-    /// Create `RestOperation` that automatically parses the response and sets the expected output
-    /// type or error upon completion.
-    func operation(payload: Input?) -> RestOperation<Input, Response> {
-        return endpoint.operation(session: session, payload: payload)
-    }
-
-    func promise(payload: Input) -> Result<Response, RestError>.Promise {
-        return Promise { resolver in
-            let taskResult = self.dataTask(payload: payload) { result in
-                resolver.resolve(value: result)
-            }
-
-            switch taskResult {
-            case .success(let task):
-                resolver.setCancelHandler {
-                    task.cancel()
-                }
-                task.resume()
-            case .failure(let error):
-                resolver.resolve(value: .failure(error))
-            }
-        }
-    }
-}
-
-// MARK: - REST interface
 
 class MullvadRest {
     let session: URLSession
@@ -361,266 +87,297 @@ class MullvadRest {
         session = URLSession(configuration: .ephemeral, delegate: sessionDelegate, delegateQueue: nil)
     }
 
-    func createAccount() -> RestSessionEndpoint<EmptyPayload, AccountResponse> {
-        return RestSessionEndpoint(session: session, endpoint: Self.createAccount())
-    }
+    // MARK: - Public
 
-    func getRelays() -> RestSessionEndpoint<ETagPayload<EmptyPayload>, HttpResourceCacheResponse<ServerRelaysResponse>> {
-        return RestSessionEndpoint(session: session, endpoint: Self.getRelays())
-    }
+    func createAccount() -> Result<AccountResponse, RestError>.Promise {
+        let request = makeURLRequest(method: .post, path: "accounts")
 
-    func getAccountExpiry() -> RestSessionEndpoint<TokenPayload<EmptyPayload>, AccountResponse> {
-        return RestSessionEndpoint(session: session, endpoint: Self.getAccountExpiry())
-    }
-
-    func getWireguardKey() -> RestSessionEndpoint<PublicKeyPayload<TokenPayload<EmptyPayload>>, WireguardAddressesResponse> {
-        return RestSessionEndpoint(session: session, endpoint: Self.getWireguardKey())
-    }
-
-    func pushWireguardKey() -> RestSessionEndpoint<TokenPayload<PushWireguardKeyRequest>, WireguardAddressesResponse> {
-        return RestSessionEndpoint(session: session, endpoint: Self.pushWireguardKey())
-    }
-
-    func replaceWireguardKey() -> RestSessionEndpoint<TokenPayload<ReplaceWireguardKeyRequest>, WireguardAddressesResponse> {
-        return RestSessionEndpoint(session: session, endpoint: Self.replaceWireguardKey())
-    }
-
-    func deleteWireguardKey() -> RestSessionEndpoint<PublicKeyPayload<TokenPayload<EmptyPayload>>, ()> {
-        return RestSessionEndpoint(session: session, endpoint: Self.deleteWireguardKey())
-    }
-
-    func createApplePayment() -> RestSessionEndpoint<TokenPayload<CreateApplePaymentRequest>, CreateApplePaymentResponse> {
-        return RestSessionEndpoint(session: session, endpoint: Self.createApplePayment())
-    }
-
-    func sendProblemReport() -> RestSessionEndpoint<ProblemReportRequest, ()> {
-        return RestSessionEndpoint(session: session, endpoint: Self.sendProblemReport())
-    }
-
-    /// Create a boilerplate `URLRequest` before injecting the payload
-    private func makeEndpointURLRequest(method: HttpMethod, endpoint: URL) -> URLRequest {
-        var request = URLRequest(
-            url: endpoint,
-            cachePolicy: .useProtocolCachePolicy,
-            timeoutInterval: kNetworkTimeout
-        )
-        request.httpShouldHandleCookies = false
-        request.addValue("application/json", forHTTPHeaderField: HttpHeader.contentType)
-        request.httpMethod = method.rawValue
-        return request
-    }
-}
-
-extension MullvadRest {
-    /// POST /v1/accounts
-    static func createAccount() -> RestEndpoint<EmptyPayload, AccountResponse> {
-        return RestEndpoint(
-            endpointURL: kRestBaseURL.appendingPathComponent("accounts"),
-            httpMethod: .post,
-            responseHandlerFactory: { (input) in
-                return DecodingResponseHandler(expectedStatus: HttpStatus.created)
-            }
-        )
-    }
-
-    /// GET /v1/relays
-    static func getRelays() -> RestEndpoint<ETagPayload<EmptyPayload>, HttpResourceCacheResponse<ServerRelaysResponse>> {
-        return RestEndpoint(
-            endpointURL: kRestBaseURL.appendingPathComponent("relays"),
-            httpMethod: .get,
-            responseHandlerFactory: { (input) in
-                return HttpCacheDecodingResponseHandler(etag: input.etag)
-            }
-        )
-    }
-
-    /// GET /v1/me
-    static func getAccountExpiry() -> RestEndpoint<TokenPayload<EmptyPayload>, AccountResponse> {
-        return RestEndpoint(
-            endpointURL: kRestBaseURL.appendingPathComponent("me"),
-            httpMethod: .get,
-            responseHandlerFactory: { (input) in
-                return DecodingResponseHandler(expectedStatus: HttpStatus.ok)
-            }
-        )
-    }
-    /// GET /v1/wireguard-keys/{pubkey}
-    static func getWireguardKey() -> RestEndpoint<PublicKeyPayload<TokenPayload<EmptyPayload>>, WireguardAddressesResponse> {
-        return RestEndpoint(
-            endpointURL: kRestBaseURL.appendingPathComponent("wireguard-keys"),
-            httpMethod: .get,
-            responseHandlerFactory: { (input) in
-                return DecodingResponseHandler(expectedStatus: HttpStatus.ok)
-            }
-        )
-    }
-
-    /// POST /v1/wireguard-keys
-    static func pushWireguardKey() -> RestEndpoint<TokenPayload<PushWireguardKeyRequest>, WireguardAddressesResponse> {
-        return RestEndpoint(
-            endpointURL: kRestBaseURL.appendingPathComponent("wireguard-keys"),
-            httpMethod: .post,
-            responseHandlerFactory: { (input) in
-                return AnyResponseHandler { (httpResponse, data) -> Result<WireguardAddressesResponse, ResponseHandlerError> in
-                    switch httpResponse.statusCode {
-                    case HttpStatus.ok, HttpStatus.created:
-                        return MullvadRest.decodeSuccessResponse(WireguardAddressesResponse.self, from: data)
-
-                    default:
-                        return .failure(.badResponse(httpResponse.statusCode))
-                    }
+        return dataTaskPromise(request: request)
+            .mapError(self.mapNetworkError)
+            .flatMap { httpResponse, data in
+                if httpResponse.statusCode == HTTPStatus.created {
+                    return Self.decodeSuccessResponse(AccountResponse.self, from: data)
+                } else {
+                    return Self.decodeErrorResponseAndMapToServerError(from: data)
                 }
             }
-        )
     }
 
-    /// POST /v1/replace-wireguard-key
-    static func replaceWireguardKey() -> RestEndpoint<TokenPayload<ReplaceWireguardKeyRequest>, WireguardAddressesResponse> {
-        return RestEndpoint(
-            endpointURL: kRestBaseURL.appendingPathComponent("replace-wireguard-key"),
-            httpMethod: .post,
-            responseHandlerFactory: { (input) in
-                return DecodingResponseHandler(expectedStatus: HttpStatus.created)
-            }
-        )
-    }
+    func getRelays(etag: String?) -> Result<HttpResourceCacheResponse<ServerRelaysResponse>, RestError>.Promise {
+        var request = makeURLRequest(method: .get, path: "relays")
+        if let etag = etag {
+            setETagHeader(etag: etag, request: &request)
+        }
 
-    /// DELETE /v1/wireguard-keys/{pubkey}
-    static func deleteWireguardKey() -> RestEndpoint<PublicKeyPayload<TokenPayload<EmptyPayload>>, ()> {
-        return RestEndpoint(
-            endpointURL: kRestBaseURL.appendingPathComponent("wireguard-keys"),
-            httpMethod: .delete,
-            responseHandlerFactory: { (input) in
-                return EmptyResponseHandler(expectedStatus: HttpStatus.noContent)
-            }
-        )
-    }
+        return dataTaskPromise(request: request)
+            .mapError(self.mapNetworkError)
+            .flatMap { httpResponse, data in
+                switch httpResponse.statusCode {
+                case .ok:
+                    return Self.decodeSuccessResponse(ServerRelaysResponse.self, from: data)
+                        .map { serverRelays in
+                            let newEtag = httpResponse.value(forCaseInsensitiveHTTPHeaderField: HTTPHeader.etag)
+                            return .newContent(newEtag, serverRelays)
+                        }
 
-    /// POST /v1/create-apple-payment
-    static func createApplePayment() -> RestEndpoint<TokenPayload<CreateApplePaymentRequest>, CreateApplePaymentResponse> {
-        return RestEndpoint(
-            endpointURL: kRestBaseURL.appendingPathComponent("create-apple-payment"),
-            httpMethod: .post,
-            responseHandlerFactory: { (input) in
-                return AnyResponseHandler { (httpResponse, data) -> Result<CreateApplePaymentResponse, ResponseHandlerError> in
-                    switch httpResponse.statusCode {
-                    case HttpStatus.ok:
-                        return MullvadRest.decodeSuccessResponse(CreateApplePaymentRawResponse.self, from: data)
-                            .map { (response) in
-                                return .noTimeAdded(response.newExpiry)
-                            }
+                case .notModified where etag != nil:
+                    return .success(.notModified)
 
-                    case HttpStatus.created:
-                        return MullvadRest.decodeSuccessResponse(CreateApplePaymentRawResponse.self, from: data)
-                            .map { (response) in
-                                return .timeAdded(response.timeAdded, response.newExpiry)
-                            }
-
-                    default:
-                        return .failure(.badResponse(httpResponse.statusCode))
-                    }
+                default:
+                    return Self.decodeErrorResponseAndMapToServerError(from: data)
                 }
             }
-        )
     }
 
-    static func sendProblemReport() -> RestEndpoint<ProblemReportRequest, ()> {
-        return RestEndpoint(
-            endpointURL: kRestBaseURL.appendingPathComponent("problem-report"),
-            httpMethod: .post,
-            responseHandlerFactory: { (input) in
-                return EmptyResponseHandler(expectedStatus: HttpStatus.noContent)
+    func getAccountExpiry(token: String) -> Result<AccountResponse, RestError>.Promise {
+        var request = makeURLRequest(method: .get, path: "me")
+
+        setAuthenticationToken(token: token, request: &request)
+
+        return dataTaskPromise(request: request)
+            .mapError(self.mapNetworkError)
+            .flatMap { httpResponse, data in
+                if httpResponse.statusCode == HTTPStatus.created {
+                    return Self.decodeSuccessResponse(AccountResponse.self, from: data)
+                } else {
+                    return Self.decodeErrorResponseAndMapToServerError(from: data)
+                }
             }
-        )
     }
+
+    func getWireguardKey(token: String, publicKey: PublicKey) -> Result<WireguardAddressesResponse, RestError>.Promise {
+        let urlEncodedPublicKey = publicKey.base64Key
+            .addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
+
+        let path = "wireguard-keys/".appending(urlEncodedPublicKey)
+        var request = makeURLRequest(method: .get, path: path)
+        
+        setAuthenticationToken(token: token, request: &request)
+
+        return dataTaskPromise(request: request)
+            .mapError(self.mapNetworkError)
+            .flatMap { httpResponse, data in
+                if httpResponse.statusCode == HTTPStatus.ok {
+                    return Self.decodeSuccessResponse(WireguardAddressesResponse.self, from: data)
+                } else {
+                    return Self.decodeErrorResponseAndMapToServerError(from: data)
+                }
+            }
+    }
+
+    func pushWireguardKey(token: String, publicKey: PublicKey) -> Result<WireguardAddressesResponse, RestError>.Promise {
+        var request = makeURLRequest(method: .post, path: "wireguard-keys")
+        let body = PushWireguardKeyRequest(pubkey: publicKey.rawValue)
+
+        setAuthenticationToken(token: token, request: &request)
+
+        do {
+            try setHTTPBody(value: body, request: &request)
+        } catch {
+            return .failure(.encodePayload(error))
+        }
+
+        return dataTaskPromise(request: request)
+            .mapError(self.mapNetworkError)
+            .flatMap { httpResponse, data in
+                switch httpResponse.statusCode {
+                case .created, .ok:
+                    return Self.decodeSuccessResponse(WireguardAddressesResponse.self, from: data)
+                default:
+                    return Self.decodeErrorResponseAndMapToServerError(from: data)
+                }
+            }
+    }
+
+    func replaceWireguardKey(token: String, oldPublicKey: PublicKey, newPublicKey: PublicKey) -> Result<WireguardAddressesResponse, RestError>.Promise {
+        var request = makeURLRequest(method: .post, path: "replace-wireguard-key")
+        let body = ReplaceWireguardKeyRequest(old: oldPublicKey.rawValue, new: newPublicKey.rawValue)
+
+        setAuthenticationToken(token: token, request: &request)
+
+        do {
+            try setHTTPBody(value: body, request: &request)
+        } catch {
+            return .failure(.encodePayload(error))
+        }
+
+        return dataTaskPromise(request: request)
+            .mapError(self.mapNetworkError)
+            .flatMap { httpResponse, data in
+                if httpResponse.statusCode == HTTPStatus.created {
+                    return Self.decodeSuccessResponse(WireguardAddressesResponse.self, from: data)
+                } else {
+                    return Self.decodeErrorResponseAndMapToServerError(from: data)
+                }
+            }
+    }
+
+    func deleteWireguardKey(token: String, publicKey: PublicKey) -> Result<(), RestError>.Promise {
+        let urlEncodedPublicKey = publicKey.base64Key
+            .addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
+
+        let path = "wireguard-keys/".appending(urlEncodedPublicKey)
+        var request = makeURLRequest(method: .delete, path: path)
+
+        setAuthenticationToken(token: token, request: &request)
+
+        return dataTaskPromise(request: request)
+            .mapError(self.mapNetworkError)
+            .flatMap { httpResponse, data in
+                if httpResponse.statusCode == HTTPStatus.noContent {
+                    return .success(())
+                } else {
+                    return Self.decodeErrorResponseAndMapToServerError(from: data)
+                }
+            }
+    }
+
+    func createApplePayment(token: String, receiptString: Data) -> Result<CreateApplePaymentResponse, RestError>.Promise {
+        var request = makeURLRequest(method: .post, path: "create-apple-payment")
+        let body = CreateApplePaymentRequest(receiptString: receiptString)
+
+        setAuthenticationToken(token: token, request: &request)
+
+        do {
+            try setHTTPBody(value: body, request: &request)
+        } catch {
+            return .failure(.encodePayload(error))
+        }
+
+        return dataTaskPromise(request: request)
+            .mapError(self.mapNetworkError)
+            .flatMap { httpResponse, data in
+                switch httpResponse.statusCode {
+                case HTTPStatus.ok:
+                    return MullvadRest.decodeSuccessResponse(CreateApplePaymentRawResponse.self, from: data)
+                        .map { (response) in
+                            return .noTimeAdded(response.newExpiry)
+                        }
+
+                case HTTPStatus.created:
+                    return MullvadRest.decodeSuccessResponse(CreateApplePaymentRawResponse.self, from: data)
+                        .map { (response) in
+                            return .timeAdded(response.timeAdded, response.newExpiry)
+                        }
+
+                default:
+                    return Self.decodeErrorResponseAndMapToServerError(from: data)
+                }
+            }
+    }
+
+    private func sendProblemReport(_ body: ProblemReportRequest) -> Result<(), RestError>.Promise {
+        var request = makeURLRequest(method: .post, path: "problem-report")
+
+        do {
+            try setHTTPBody(value: body, request: &request)
+        } catch {
+            return .failure(.encodePayload(error))
+        }
+
+        return dataTaskPromise(request: request)
+            .mapError(self.mapNetworkError)
+            .flatMap { httpResponse, data in
+                if httpResponse.statusCode == HTTPStatus.noContent {
+                    return .success(())
+                } else {
+                    return Self.decodeErrorResponseAndMapToServerError(from: data)
+                }
+            }
+    }
+
+    // MARK: - Private
 
     /// A private helper that parses the JSON response into the given `Decodable` type.
-    fileprivate static func decodeSuccessResponse<T: Decodable>(_ type: T.Type, from data: Data) -> Result<T, ResponseHandlerError> {
+    fileprivate static func decodeSuccessResponse<T: Decodable>(_ type: T.Type, from data: Data) -> Result<T, RestError> {
         return Result { try RestCoding.makeJSONDecoder().decode(type, from: data) }
-            .mapError { (error) -> ResponseHandlerError in
-                return .decodeData(error)
+            .mapError { error in
+                return .decodeSuccessResponse(error)
             }
     }
 
     /// A private helper that parses the JSON response in case of error (Any HTTP code except 2xx)
-    fileprivate static func decodeErrorResponse(httpResponse: HTTPURLResponse, data: Data) -> Result<ServerErrorResponse, RestError> {
+    fileprivate static func decodeErrorResponse(from data: Data) -> Result<ServerErrorResponse, RestError> {
         return Result { () -> ServerErrorResponse in
             return try RestCoding.makeJSONDecoder().decode(ServerErrorResponse.self, from: data)
-        }.mapError({ (error) -> RestError in
+        }.mapError { error in
             return .decodeErrorResponse(error)
-        })
-    }
-}
-
-
-// MARK: - Payload types
-
-/// A payload that adds the authentication token into HTTP Authorization header
-struct TokenPayload<Payload: RestPayload>: RestPayload {
-    let token: String
-    let payload: Payload
-
-    init(token: String, payload: Payload) {
-        self.token = token
-        self.payload = payload
-    }
-
-    func inject(into request: inout URLRequest) throws {
-        request.addValue("Token \(token)", forHTTPHeaderField: HttpHeader.authorization)
-        try payload.inject(into: &request)
-    }
-}
-
-/// A payload that adds the public key into the URL path
-struct PublicKeyPayload<Payload: RestPayload>: RestPayload {
-    let pubKey: Data
-    let payload: Payload
-
-    init(pubKey: Data, payload: Payload) {
-        self.pubKey = pubKey
-        self.payload = payload
-    }
-
-    func inject(into request: inout URLRequest) throws {
-        let pathComponent = pubKey.base64EncodedString()
-            .addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
-
-        request.url = request.url?.appendingPathComponent(pathComponent)
-        try payload.inject(into: &request)
-    }
-}
-
-/// A payload that adds the ETag header to the request
-struct ETagPayload<Payload: RestPayload>: RestPayload {
-    let etag: String?
-    let enforceWeakValidator: Bool
-    let payload: Payload
-
-    init(etag: String?, enforceWeakValidator: Bool, payload: Payload) {
-        self.etag = etag
-        self.enforceWeakValidator = enforceWeakValidator
-        self.payload = payload
-    }
-
-    func inject(into request: inout URLRequest) throws {
-        if var etag = etag {
-            // Enforce weak validator to account for some backend caching quirks.
-            if enforceWeakValidator && etag.starts(with: "\"") {
-                etag.insert(contentsOf: "W/", at: etag.startIndex)
-            }
-            request.setValue(etag, forHTTPHeaderField: HttpHeader.ifNoneMatch)
         }
-        try payload.inject(into: &request)
+    }
+
+    private static func decodeErrorResponseAndMapToServerError<T>(from data: Data) -> Result<T, RestError> {
+        return Self.decodeErrorResponse(from: data)
+            .flatMap { serverError in
+                return .failure(.server(serverError))
+            }
+    }
+
+    private func mapNetworkError(_ error: URLError) -> RestError {
+        return .network(error)
+    }
+
+    private func dataTask(request: URLRequest, completion: @escaping (Result<(HTTPURLResponse, Data), URLError>) -> Void) -> URLSessionDataTask {
+        return self.session.dataTask(with: request) { data, response, error in
+            if let error = error {
+                let urlError = error as? URLError ?? URLError(.unknown)
+
+                completion(.failure(urlError))
+            } else {
+                if let httpResponse = response as? HTTPURLResponse {
+                    let data = data ?? Data()
+                    let value = (httpResponse, data)
+
+                    completion(.success(value))
+                } else {
+                    completion(.failure(URLError(.unknown)))
+                }
+            }
+        }
+    }
+
+    private func dataTaskPromise(request: URLRequest) -> Result<(HTTPURLResponse, Data), URLError>.Promise {
+        return Result<(HTTPURLResponse, Data), URLError>.Promise { resolver in
+            let task = self.dataTask(request: request) { result in
+                resolver.resolve(value: result)
+            }
+
+            resolver.setCancelHandler {
+                task.cancel()
+            }
+
+            task.resume()
+        }
+    }
+
+    private func setHTTPBody<T: Encodable>(value: T, request: inout URLRequest) throws {
+        request.httpBody = try RestCoding.makeJSONEncoder().encode(value)
+    }
+
+    private func setETagHeader(etag: String, request: inout URLRequest) {
+        var etag = etag
+        // Enforce weak validator to account for some backend caching quirks.
+        if etag.starts(with: "\"") {
+            etag.insert(contentsOf: "W/", at: etag.startIndex)
+        }
+        request.setValue(etag, forHTTPHeaderField: HTTPHeader.ifNoneMatch)
+    }
+
+    private func setAuthenticationToken(token: String, request: inout URLRequest) {
+        request.addValue("Token \(token)", forHTTPHeaderField: HTTPHeader.authorization)
+    }
+
+    private func makeURLRequest(method: HTTPMethod, path: String) -> URLRequest {
+        var request = URLRequest(
+            url: kRestBaseURL.appendingPathComponent(path),
+            cachePolicy: .useProtocolCachePolicy,
+            timeoutInterval: kNetworkTimeout
+        )
+        request.httpShouldHandleCookies = false
+        request.addValue("application/json", forHTTPHeaderField: HTTPHeader.contentType)
+        request.httpMethod = method.rawValue
+        return request
     }
 }
-
-/// An empty payload placeholder type.
-/// Use it in places where the payload is not expected
-struct EmptyPayload: RestPayload {
-    init() {}
-    func inject(into request: inout URLRequest) throws {}
-}
-
 
 // MARK: - Response types
 
@@ -649,7 +406,7 @@ enum HttpResourceCacheResponse<T: Decodable> {
     case newContent(_ etag: String?, _ value: T)
 }
 
-struct PushWireguardKeyRequest: Encodable, RestPayload {
+struct PushWireguardKeyRequest: Encodable {
     let pubkey: Data
 }
 
@@ -660,12 +417,12 @@ struct WireguardAddressesResponse: Decodable {
     let ipv6Address: IPAddressRange
 }
 
-struct ReplaceWireguardKeyRequest: Encodable, RestPayload {
+struct ReplaceWireguardKeyRequest: Encodable {
     let old: Data
     let new: Data
 }
 
-struct CreateApplePaymentRequest: Encodable, RestPayload {
+struct CreateApplePaymentRequest: Encodable {
     let receiptString: Data
 }
 
@@ -704,7 +461,7 @@ fileprivate struct CreateApplePaymentRawResponse: Decodable {
     let newExpiry: Date
 }
 
-struct ProblemReportRequest: Encodable, RestPayload {
+struct ProblemReportRequest: Encodable {
     let address: String
     let message: String
     let log: String
