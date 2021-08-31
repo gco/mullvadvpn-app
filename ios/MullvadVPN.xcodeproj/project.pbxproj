@@ -94,7 +94,6 @@
 		585834FC24D2BC9500A8AF56 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 585834FB24D2BC9500A8AF56 /* Logging */; };
 		585B4B8726D9098900555C4C /* TunnelStateNotificationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A94AE326CFD945001CB97C /* TunnelStateNotificationProvider.swift */; };
 		585CA70F25F8C44600B47C62 /* UIMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585CA70E25F8C44600B47C62 /* UIMetrics.swift */; };
-		585DA8AF26B9492500B8C587 /* Promise.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585DA8AE26B9492500B8C587 /* Promise.swift */; };
 		585DA87726B024A600B8C587 /* CachedRelays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585DA87626B024A600B8C587 /* CachedRelays.swift */; };
 		585DA87826B024A900B8C587 /* CachedRelays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585DA87626B024A600B8C587 /* CachedRelays.swift */; };
 		585DA87A26B024F900B8C587 /* RelayCacheError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585DA87926B024F900B8C587 /* RelayCacheError.swift */; };
@@ -402,7 +401,6 @@
 		5857F24224C8662600CF6F47 /* SelectLocationHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectLocationHeaderView.swift; sourceTree = "<group>"; };
 		5857F24624C882D700CF6F47 /* SelectLocationNavigationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectLocationNavigationController.swift; sourceTree = "<group>"; };
 		585CA70E25F8C44600B47C62 /* UIMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIMetrics.swift; sourceTree = "<group>"; };
-		585DA8AE26B9492500B8C587 /* Promise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Promise.swift; sourceTree = "<group>"; };
 		585DA87626B024A600B8C587 /* CachedRelays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedRelays.swift; sourceTree = "<group>"; };
 		585DA87926B024F900B8C587 /* RelayCacheError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayCacheError.swift; sourceTree = "<group>"; };
 		585DA87C26B0254000B8C587 /* RelayCacheIO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayCacheIO.swift; sourceTree = "<group>"; };
@@ -1400,7 +1398,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				5850366825A47AC700A43E93 /* IPAddressRange+Codable.swift in Sources */,
-				580EE20224B321DB00F9D8A1 /* OperationProtocol.swift in Sources */,
 				58B93A1826C54D7E00A55733 /* Locking.swift in Sources */,
 				58FAEE0224533ABB00CB0F5B /* KeychainMatchLimit.swift in Sources */,
 				5860392A26DCE7AB00554C79 /* PromiseCompletion.swift in Sources */,
@@ -1423,9 +1420,6 @@
 				58CE5E7C224146470008646E /* PacketTunnelProvider.swift in Sources */,
 				58FAEDF1245069CA00CB0F5B /* KeychainAttributes.swift in Sources */,
 				586AA296234B696B00502875 /* WireguardAssociatedAddresses.swift in Sources */,
-				58BA692F23E99F5B009DC256 /* Locking.swift in Sources */,
-				580EE21624B3231200F9D8A1 /* OperationBlockObserver.swift in Sources */,
-				58CC40F024A602780019D96E /* ObserverList.swift in Sources */,
 				58E1337226D2BE9C00CC316B /* AnyOptional.swift in Sources */,
 				58E1338226D2BF5C00CC316B /* Promise+Result.swift in Sources */,
 				585DA89A26B0329200B8C587 /* TunnelConnectionInfo.swift in Sources */,
@@ -1449,9 +1443,6 @@
 				58F840B32464491D0044E708 /* ChainedError.swift in Sources */,
 				58D67A0A26D7AE3300557C3C /* OSLogHandler.swift in Sources */,
 				58561C9A239A5D1500BD6B5E /* IPEndpoint.swift in Sources */,
-				580EE22524B3243100F9D8A1 /* AsyncBlockOperation.swift in Sources */,
-				583B070F26AFF3F3006893E1 /* MullvadRest.swift in Sources */,
-				580EE20D24B3225F00F9D8A1 /* DelayOperation.swift in Sources */,
 				58E1337626D2BEC400CC316B /* Promise+Optional.swift in Sources */,
 				585DA88B26B027A300B8C587 /* RestCoding.swift in Sources */,
 				58781CCE22AE8918009B9D8E /* RelayConstraints.swift in Sources */,
