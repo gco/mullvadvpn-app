@@ -102,7 +102,7 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
     }
 
     private func pickRelay(completion: @escaping (RelaySelectorResult?) -> Void) {
-        RelayCache.shared.read { (result) in
+        RelayCacheTracker.shared.read { (result) in
             switch result {
             case .success(let cachedRelays):
                 let keychainReference = self.protocolConfiguration.passwordReference!
