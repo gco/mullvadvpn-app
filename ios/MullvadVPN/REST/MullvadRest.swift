@@ -40,105 +40,6 @@ enum HttpHeader {
     static let ifNoneMatch = "If-None-Match"
 }
 
-/// A struct that represents a server response in case of error (any HTTP status code except 2xx).
-struct ServerErrorResponse: LocalizedError, Decodable, Equatable {
-    /// A list of known server error codes
-    enum Code: String, Equatable {
-        case invalidAccount = "INVALID_ACCOUNT"
-        case keyLimitReached = "KEY_LIMIT_REACHED"
-        case pubKeyNotFound = "PUBKEY_NOT_FOUND"
-
-        static func ~= (pattern: Self, value: ServerErrorResponse) -> Bool {
-            return pattern.rawValue == value.code
-        }
-    }
-
-    static var invalidAccount: Code {
-        return .invalidAccount
-    }
-    static var keyLimitReached: Code {
-        return .keyLimitReached
-    }
-    static var pubKeyNotFound: Code {
-        return .pubKeyNotFound
-    }
-
-    let code: String
-    let error: String?
-
-    var errorDescription: String? {
-        switch code {
-        case Code.keyLimitReached.rawValue:
-            return NSLocalizedString(
-                "KEY_LIMIT_REACHED_ERROR_DESCRIPTION",
-                tableName: "MullvadRest",
-                value: "Too many WireGuard keys in use.",
-                comment: ""
-            )
-        case Code.invalidAccount.rawValue:
-            return NSLocalizedString(
-                "INVALID_ACCOUNT_ERROR_DESCRIPTION",
-                tableName: "MullvadRest",
-                value: "Invalid account.",
-                comment: ""
-            )
-        default:
-            return nil
-        }
-    }
-
-    var recoverySuggestion: String? {
-        switch code {
-        case Code.keyLimitReached.rawValue:
-            return NSLocalizedString(
-                "KEY_LIMIT_REACHED_ERROR_RECOVERY_SUGGESTION",
-                tableName: "MullvadRest",
-                value: "Please visit the website to revoke a key before login is possible.",
-                comment: ""
-            )
-        default:
-            return nil
-        }
-    }
-
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        return lhs.code == rhs.code
-    }
-}
-
-/// An error type returned by `MullvadRest`
-enum RestError: ChainedError {
-    /// A failure to encode the payload
-    case encodePayload(Error)
-
-    /// A failure during networking
-    case network(URLError)
-
-    /// A failure reported by server
-    case server(ServerErrorResponse)
-
-    /// A failure to decode the error response from server
-    case decodeErrorResponse(Error)
-
-    /// A failure to decode the success response from server
-    case decodeSuccessResponse(Error)
-
-    var errorDescription: String? {
-        switch self {
-        case .encodePayload:
-            return "Failure to encode the payload"
-        case .network:
-            return "Network error"
-        case .server:
-            return "Server error"
-        case .decodeErrorResponse:
-            return "Failure to decode error response from server"
-        case .decodeSuccessResponse:
-            return "Failure to decode success response from server"
-        }
-    }
-}
-
 /// Types conforming to this protocol can participate in forming the `URLRequest` created by
 /// `RestEndpoint`.
 protocol RestPayload {
@@ -148,7 +49,7 @@ protocol RestPayload {
 /// Any `Encodable` type can be injected as JSON payload
 extension RestPayload where Self: Encodable {
     func inject(into request: inout URLRequest) throws {
-        request.httpBody = try MullvadRest.makeJSONEncoder().encode(self)
+        request.httpBody = try RestCoding.makeJSONEncoder().encode(self)
     }
 }
 
@@ -602,27 +503,9 @@ extension MullvadRest {
         )
     }
 
-    /// Returns a JSON encoder used by REST API
-    static func makeJSONEncoder() -> JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.dataEncodingStrategy = .base64
-        return encoder
-    }
-
-    /// Returns a JSON decoder used by REST API
-    static func makeJSONDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
-        decoder.dataDecodingStrategy = .base64
-        return decoder
-    }
-
     /// A private helper that parses the JSON response into the given `Decodable` type.
     fileprivate static func decodeSuccessResponse<T: Decodable>(_ type: T.Type, from data: Data) -> Result<T, ResponseHandlerError> {
-        return Result { try MullvadRest.makeJSONDecoder().decode(type, from: data) }
+        return Result { try RestCoding.makeJSONDecoder().decode(type, from: data) }
             .mapError { (error) -> ResponseHandlerError in
                 return .decodeData(error)
             }
@@ -631,7 +514,7 @@ extension MullvadRest {
     /// A private helper that parses the JSON response in case of error (Any HTTP code except 2xx)
     fileprivate static func decodeErrorResponse(httpResponse: HTTPURLResponse, data: Data) -> Result<ServerErrorResponse, RestError> {
         return Result { () -> ServerErrorResponse in
-            return try MullvadRest.makeJSONDecoder().decode(ServerErrorResponse.self, from: data)
+            return try RestCoding.makeJSONDecoder().decode(ServerErrorResponse.self, from: data)
         }.mapError({ (error) -> RestError in
             return .decodeErrorResponse(error)
         })
@@ -715,33 +598,6 @@ struct AccountResponse: Decodable {
     let expires: Date
 }
 
-struct ServerLocation: Codable {
-    let country: String
-    let city: String
-    let latitude: Double
-    let longitude: Double
-}
-
-struct ServerRelay: Codable {
-    let hostname: String
-    let active: Bool
-    let owned: Bool
-    let location: String
-    let provider: String
-    let weight: Int32
-    let ipv4AddrIn: IPv4Address
-    let ipv6AddrIn: IPv6Address
-    let publicKey: Data
-    let includeInCountry: Bool
-}
-
-struct ServerWireguardTunnels: Codable {
-    let ipv4Gateway: IPv4Address
-    let ipv6Gateway: IPv6Address
-    let portRanges: [ClosedRange<UInt16>]
-    let relays: [ServerRelay]
-}
-
 private extension HTTPURLResponse {
     func value(forCaseInsensitiveHTTPHeaderField headerField: String) -> String? {
         if #available(iOS 13.0, *) {
@@ -760,11 +616,6 @@ private extension HTTPURLResponse {
 enum HttpResourceCacheResponse<T: Decodable> {
     case notModified
     case newContent(_ etag: String?, _ value: T)
-}
-
-struct ServerRelaysResponse: Codable {
-    let locations: [String: ServerLocation]
-    let wireguard: ServerWireguardTunnels
 }
 
 struct PushWireguardKeyRequest: Encodable, RestPayload {
