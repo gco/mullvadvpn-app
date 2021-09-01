@@ -459,13 +459,7 @@ class TunnelManager {
                 return
             }
 
-            let payload = PublicKeyPayload(
-                pubKey: tunnelInfo.tunnelSettings.interface.publicKey.rawValue,
-                payload: TokenPayload(token: tunnelInfo.token, payload: EmptyPayload())
-            )
-
-            self.rest.getWireguardKey()
-                .promise(payload: payload)
+            self.rest.getWireguardKey(token: tunnelInfo.token, publicKey: tunnelInfo.tunnelSettings.interface.publicKey)
                 .map { _ in
                     return true
                 }
@@ -759,12 +753,8 @@ class TunnelManager {
         }
     }
 
-    private func pushWireguardKeyAndUpdateSettings(accountToken: String, publicKey: PublicKey) -> Result<TunnelSettings, Error>.Promise
-    {
-        let payload = TokenPayload(token: accountToken, payload: PushWireguardKeyRequest(pubkey: publicKey.rawValue))
-
-        return rest.pushWireguardKey()
-            .promise(payload: payload)
+    private func pushWireguardKeyAndUpdateSettings(accountToken: String, publicKey: PublicKey) -> Result<TunnelSettings, Error>.Promise {
+        return rest.pushWireguardKey(token: accountToken, publicKey: publicKey)
             .mapError { error in
                 return .pushWireguardKey(error)
             }
@@ -779,12 +769,7 @@ class TunnelManager {
     }
 
     private func removeWireguardKeyFromServer(accountToken: String, publicKey: PublicKey) -> Result<Bool, Error>.Promise {
-        let payload = PublicKeyPayload(
-            pubKey: publicKey.rawValue,
-            payload: TokenPayload(token: accountToken, payload: EmptyPayload())
-        )
-
-        return rest.deleteWireguardKey().promise(payload: payload)
+        return rest.deleteWireguardKey(token: accountToken, publicKey: publicKey)
             .map { _ in
                 return true
             }
@@ -803,20 +788,11 @@ class TunnelManager {
         newPrivateKey: PrivateKeyWithMetadata
     ) -> Result<TunnelSettings, Error>.Promise
     {
-        let payload = TokenPayload(
-            token: accountToken,
-            payload: ReplaceWireguardKeyRequest(
-                old: oldPublicKey.publicKey.rawValue,
-                new: newPrivateKey.publicKeyWithMetadata.publicKey.rawValue
-            )
-        )
-
-        return rest.replaceWireguardKey()
-            .promise(payload: payload)
-            .receive(on: self.stateQueue)
+        return rest.replaceWireguardKey(token: accountToken, oldPublicKey: oldPublicKey.publicKey, newPublicKey: newPrivateKey.publicKey)
             .mapError { error in
                 return .replaceWireguardKey(error)
             }
+            .receive(on: self.stateQueue)
             .flatMap { associatedAddresses in
                 return Self.updateTunnelSettings(accountToken: accountToken) { (tunnelSettings) in
                     tunnelSettings.interface.privateKey = newPrivateKey

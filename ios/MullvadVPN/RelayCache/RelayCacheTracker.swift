@@ -71,7 +71,7 @@ class RelayCacheTracker {
     private var isPeriodicUpdatesEnabled = false
 
     /// A download task used for relay RPC request
-    private var downloadTask: URLSessionTask?
+    private var downloadCancellationToken: PromiseCancellationToken?
 
     /// Observers
     private let observerList = ObserverList<AnyRelayCacheObserver>()
@@ -124,8 +124,7 @@ class RelayCacheTracker {
             self.timerSource?.cancel()
             self.timerSource = nil
 
-            self.downloadTask?.cancel()
-            self.downloadTask = nil
+            self.downloadCancellationToken = nil
         }
     }
 
@@ -166,83 +165,80 @@ class RelayCacheTracker {
 
     // MARK: - Private instance methods
 
-    private func _updateRelays(completionHandler: ((RelayFetchResult) -> Void)?) {
-        switch RelayCacheIO.read(cacheFileURL: self.cacheFileURL) {
-        case .success(let cachedRelays):
-            let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelays.updatedAt)
+    private func _updateRelays() -> Result<RelayFetchResult, RelayCacheError>.Promise {
+        RelayCacheIO.read(cacheFileURL: self.cacheFileURL)
+            .asPromise()
+            .then { result in
+                switch result {
+                case .success(let cachedRelays):
+                    let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelays.updatedAt)
 
-            if let nextUpdate = nextUpdate, nextUpdate <= Date() {
-                self.downloadRelays(previouslyCachedRelays: cachedRelays, completionHandler: completionHandler)
-            } else {
-                completionHandler?(.throttled)
-            }
-
-        case .failure(let readError):
-            self.logger.error(chainedError: readError, message: "Failed to read the relay cache to determine if it needs to be updated")
-
-            if Self.shouldDownloadRelaysOnReadFailure(readError) {
-                self.downloadRelays(previouslyCachedRelays: nil, completionHandler: completionHandler)
-            } else {
-                completionHandler?(.failure(readError))
-            }
-        }
-    }
-
-    private func downloadRelays(previouslyCachedRelays: CachedRelays?, completionHandler: ((RelayFetchResult) -> Void)?) {
-        let taskResult = makeDownloadTask(etag: previouslyCachedRelays?.etag) { (result) in
-            switch result {
-            case .success(.newContent(let etag, let relays)):
-                let numRelays = relays.wireguard.relays.count
-
-                self.logger.info("Downloaded \(numRelays) relays")
-
-                let cachedRelays = CachedRelays(etag: etag, relays: relays, updatedAt: Date())
-                switch RelayCacheIO.write(cacheFileURL: self.cacheFileURL, record: cachedRelays) {
-                case .success:
-                    self.observerList.forEach { (observer) in
-                        observer.relayCache(self, didUpdateCachedRelays: cachedRelays)
+                    if let nextUpdate = nextUpdate, nextUpdate <= Date() {
+                        return self.downloadRelays(previouslyCachedRelays: cachedRelays)
+                    } else {
+                        return .success(.throttled)
                     }
 
-                    completionHandler?(.newContent)
+                case .failure(let readError):
+                    self.logger.error(chainedError: readError, message: "Failed to read the relay cache to determine if it needs to be updated")
 
-                case .failure(let error):
-                    self.logger.error(chainedError: error, message: "Failed to store downloaded relays")
-                    completionHandler?(.failure(error))
+                    if Self.shouldDownloadRelaysOnReadFailure(readError) {
+                        return self.downloadRelays(previouslyCachedRelays: nil)
+                    } else {
+                        return .failure(readError)
+                    }
                 }
-
-            case .success(.notModified):
-                self.logger.info("Relays haven't changed since last check.")
-
-                var cachedRelays = previouslyCachedRelays!
-                cachedRelays.updatedAt = Date()
-
-                switch RelayCacheIO.write(cacheFileURL: self.cacheFileURL, record: cachedRelays) {
-                case .success:
-                    completionHandler?(.sameContent)
-
-                case .failure(let error):
-                    self.logger.error(chainedError: error, message: "Failed to update cached relays timestamp")
-                    completionHandler?(.failure(error))
-                }
-
-            case .failure(let error):
-                self.logger.error(chainedError: error, message: "Failed to download relays")
-                completionHandler?(.failure(error))
             }
-        }
+    }
 
-        downloadTask?.cancel()
+    private func downloadRelays(previouslyCachedRelays: CachedRelays?) -> Result<RelayFetchResult, RelayCacheError>.Promise {
+        return rest.getRelays(etag: previouslyCachedRelays?.etag)
+            .storeCancellationToken(in: &downloadCancellationToken)
+            .mapError { error in
+                return RelayCacheError.rest(error)
+            }
+            .receive(on: dispatchQueue)
+            .onFailure { error in
+                self.logger.error(chainedError: error, message: "Failed to download relays")
+            }
+            .mapThen { result in
+                switch result {
+                case .newContent(let etag, let relays):
+                    let numRelays = relays.wireguard.relays.count
 
-        switch taskResult {
-        case .success(let newDownloadTask):
-            downloadTask = newDownloadTask
-            newDownloadTask.resume()
+                    self.logger.info("Downloaded \(numRelays) relays")
 
-        case .failure(let restError):
-            self.logger.error(chainedError: restError, message: "Failed to create a REST request for updating relays")
-            downloadTask = nil
-            completionHandler?(.failure(restError))
-        }
+                    let cachedRelays = CachedRelays(etag: etag, relays: relays, updatedAt: Date())
+
+                    return RelayCacheIO.write(cacheFileURL: self.cacheFileURL, record: cachedRelays)
+                        .asPromise()
+                        .map { _ in
+                            self.observerList.forEach { (observer) in
+                                observer.relayCache(self, didUpdateCachedRelays: cachedRelays)
+                            }
+
+                            return .newContent
+                        }
+                        .onFailure { error in
+                            self.logger.error(chainedError: error, message: "Failed to store downloaded relays")
+                        }
+
+                case .notModified:
+                    self.logger.info("Relays haven't changed since last check.")
+
+                    var cachedRelays = previouslyCachedRelays!
+                    cachedRelays.updatedAt = Date()
+
+                    return RelayCacheIO.write(cacheFileURL: self.cacheFileURL, record: cachedRelays)
+                        .asPromise()
+                        .map { _ in
+                            return .sameContent
+                        }
+                        .onFailure { error in
+                            self.logger.error(chainedError: error, message: "Failed to update cached relays timestamp")
+                        }
+                }
+            }
     }
 
     private func scheduleRepeatingTimer(startTime: DispatchWallTime) {
@@ -259,14 +255,6 @@ class RelayCacheTracker {
         timerSource.activate()
 
         self.timerSource = timerSource
-    }
-
-    private func makeDownloadTask(etag: String?, completionHandler: @escaping (Result<HttpResourceCacheResponse<ServerRelaysResponse>, RelayCacheError>) -> Void) -> Result<URLSessionDataTask, RestError> {
-        return rest.getRelays().dataTask(payload: ETagPayload(etag: etag, enforceWeakValidator: true, payload: EmptyPayload())) { (result) in
-            self.dispatchQueue.async {
-                completionHandler(result.mapError { RelayCacheError.rest($0) })
-            }
-        }
     }
 
     // MARK: - Private class methods

@@ -26,6 +26,13 @@ final class Promise<Value> {
         return Self.init(value: value)
     }
 
+    /// Returns Promise with lazily resolved value.
+    class func deferred(_ producer: @escaping () -> Value) -> Self {
+        return Self.init { resolver in
+            resolver.resolve(value: producer())
+        }
+    }
+
     /// Initialize Promise with the execution block.
     init(body: @escaping (PromiseResolver<Value>) -> Void) {
         state = .pending(body, nil)
@@ -121,6 +128,14 @@ final class Promise<Value> {
         return self
     }
 
+    func storeCancellationToken<C: RangeReplaceableCollection>(in collection: inout C) -> Self where C.Element == PromiseCancellationToken {
+        let token = PromiseCancellationToken { [weak self] in
+            self?.cancel()
+        }
+        collection.append(token)
+        return self
+    }
+
     /// Set the queue on which to execute the promise's body block.
     func schedule(on queue: DispatchQueue) -> Self {
         return lock.withCriticalBlock {
@@ -168,7 +183,7 @@ final class Promise<Value> {
 
             state = .executing
 
-            let resolver = PromiseResolver(promise: self)
+            let resolver = PromiseResolver(promise: self, executionContext: queue)
 
             queue?.async { block(resolver) } ?? block(resolver)
         }
@@ -215,10 +230,12 @@ final class PromiseCancellationToken {
 
 struct PromiseResolver<Value> {
     private let promise: Promise<Value>
+    let executionContext: DispatchQueue?
 
     /// Private initializer.
-    fileprivate init(promise: Promise<Value>) {
+    fileprivate init(promise: Promise<Value>, executionContext: DispatchQueue?) {
         self.promise = promise
+        self.executionContext = executionContext
     }
 
     /// Resolve the promise with `PromiseCompletion`.

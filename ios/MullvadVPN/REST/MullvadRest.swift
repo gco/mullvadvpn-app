@@ -266,7 +266,7 @@ class MullvadRest {
             }
     }
 
-    private func sendProblemReport(_ body: ProblemReportRequest) -> Result<(), RestError>.Promise {
+    func sendProblemReport(_ body: ProblemReportRequest) -> Result<(), RestError>.Promise {
         var request = makeURLRequest(method: .post, path: "problem-report")
 
         do {

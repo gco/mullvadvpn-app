@@ -116,51 +116,57 @@ class Account {
 
     func loginWithNewAccount(completionHandler: @escaping (Result<AccountResponse, Error>) -> Void) {
         _ = rest.createAccount()
+            .mapError { error in
+                return Error.createAccount(error)
+            }
             .receive(on: .main)
-            .onSuccess { response in
-                self.setupTunnel(accountToken: response.token, expiry: response.expires) { (result) in
-                    if case .success = result {
+            .mapThen { response in
+                return self.setupTunnel(accountToken: response.token, expiry: response.expires)
+                    .map { _ in
                         self.observerList.forEach { (observer) in
                             observer.account(self, didLoginWithToken: response.token, expiry: response.expires)
                         }
+                        return response
                     }
-                    completionHandler(result.map { response })
-                }
-            }
-            .onFailure { error in
-                completionHandler(.failure(.createAccount(error)))
             }
             .block(on: dispatchQueue)
+            .receive(on: .main)
+            .observe { completion in
+                completionHandler(completion.unwrappedValue!)
+            }
     }
 
     /// Perform the login and save the account token along with expiry (if available) to the
     /// application preferences.
     func login(with accountToken: String, completionHandler: @escaping (Result<AccountResponse, Error>) -> Void) {
         _ = rest.getAccountExpiry(token: accountToken)
-            .receive(on: .main)
-            .onSuccess { response in
-                self.setupTunnel(accountToken: response.token, expiry: response.expires) { (result) in
-                    if case .success = result {
+            .mapError { error in
+                return Error.verifyAccount(error)
+            }
+            .mapThen { response in
+                return self.setupTunnel(accountToken: response.token, expiry: response.expires)
+                    .map { _ in
                         self.observerList.forEach { (observer) in
                             observer.account(self, didLoginWithToken: response.token, expiry: response.expires)
                         }
+                        return response
                     }
-                    completionHandler(result.map { response })
-                }
-            }
-            .onFailure { error in
-                completionHandler(.failure(.verifyAccount(error)))
             }
             .block(on: dispatchQueue)
+            .receive(on: .main)
+            .observe { completion in
+                completionHandler(completion.unwrappedValue!)
+            }
     }
 
     /// Perform the logout by erasing the account token and expiry from the application preferences.
     func logout(completionHandler: @escaping (Result<(), Error>) -> Void) {
         _ = TunnelManager.shared.unsetAccount()
-            .receive(on: .main)
             .mapError { error in
                 return Error.tunnelConfiguration(error)
             }
+            .block(on: dispatchQueue)
+            .receive(on: .main)
             .onSuccess { _ in
                 self.removeFromPreferences()
                 self.observerList.forEach { (observer) in
@@ -170,54 +176,52 @@ class Account {
             .observe { completion in
                 completionHandler(completion.unwrappedValue!)
             }
-            .block(on: dispatchQueue)
     }
 
     /// Forget that user was logged in, but do not attempt to unset account in `TunnelManager`.
     /// This function is used in cases where the tunnel or tunnel settings are corrupt.
     func forget(completionHandler: @escaping () -> Void) {
-        dispatchQueue.async {
-            DispatchQueue.main.sync {
-                self.removeFromPreferences()
-                self.observerList.forEach { (observer) in
-                    observer.accountDidLogout(self)
-                }
-                completionHandler()
+        _ = Promise<Void> { resolver in
+            self.removeFromPreferences()
+            self.observerList.forEach { (observer) in
+                observer.accountDidLogout(self)
             }
+            resolver.resolve(value: ())
+        }
+        .schedule(on: .main)
+        .block(on: dispatchQueue)
+        .receive(on: .main)
+        .observe { _ in
+            completionHandler()
         }
     }
 
     func updateAccountExpiry() {
-        let makeRequest = ResultOperation { () -> TokenPayload<EmptyPayload>? in
-            return self.token.flatMap { (token) in
-                return TokenPayload(token: token, payload: EmptyPayload())
+        _ = Promise<String?>.deferred { self.token }
+            .mapThen(defaultValue: nil) { token in
+                return self.rest.getAccountExpiry(token: token)
+                    .onFailure { error in
+                        self.logger.error(chainedError: error, message: "Failed to update account expiry")
+                    }
+                    .success()
             }
-        }
+            .schedule(on: .main)
+            .block(on: dispatchQueue)
+            .receive(on: .main)
+            .observe { completion in
+                guard let response = completion.flattenUnwrappedValue else { return }
 
-        let sendRequest = rest.getAccountExpiry()
-            .operation(payload: nil)
-            .injectResult(from: makeRequest)
-
-        sendRequest.addDidFinishBlockObserver(queue: .main) { (operation, result) in
-            switch result {
-            case .success(let response):
                 if self.expiry != response.expires {
                     self.expiry = response.expires
                     self.observerList.forEach { (observer) in
                         observer.account(self, didUpdateExpiry: response.expires)
                     }
                 }
-
-            case .failure(let error):
-                self.logger.error(chainedError: error, message: "Failed to update account expiry")
             }
-        }
-
-        exclusivityController.addOperations([makeRequest, sendRequest], categories: [.exclusive])
     }
 
-    private func setupTunnel(accountToken: String, expiry: Date, completionHandler: @escaping (Result<(), Error>) -> Void) {
-        TunnelManager.shared.setAccount(accountToken: accountToken)
+    private func setupTunnel(accountToken: String, expiry: Date) -> Result<(), Error>.Promise {
+        return TunnelManager.shared.setAccount(accountToken: accountToken)
             .receive(on: .main)
             .mapError { error in
                 return Error.tunnelConfiguration(error)
@@ -225,9 +229,6 @@ class Account {
             .onSuccess { _ in
                 self.token = accountToken
                 self.expiry = expiry
-            }
-            .observe { completion in
-                completionHandler(completion.unwrappedValue!)
             }
     }
 
@@ -260,10 +261,11 @@ extension Account: AppStorePaymentObserver {
     }
 
     func appStorePaymentManager(_ manager: AppStorePaymentManager, transaction: SKPaymentTransaction, accountToken: String, didFinishWithResponse response: CreateApplePaymentResponse) {
-        let newExpiry = response.newExpiry
+        _ = Promise.deferred { response }
+            .schedule(on: .main)
+            .then { response in
+                let newExpiry = response.newExpiry
 
-        let operation = AsyncBlockOperation { (finish) in
-            DispatchQueue.main.async {
                 // Make sure that payment corresponds to the active account token
                 if self.token == accountToken, self.expiry != newExpiry {
                     self.expiry = newExpiry
@@ -271,11 +273,8 @@ extension Account: AppStorePaymentObserver {
                         observer.account(self, didUpdateExpiry: newExpiry)
                     }
                 }
-
-                finish()
             }
-        }
-
-        exclusivityController.addOperation(operation, categories: [.exclusive])
+            .block(on: dispatchQueue)
+            .observe { _ in }
     }
 }

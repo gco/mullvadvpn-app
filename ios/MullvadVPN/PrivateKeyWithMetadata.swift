@@ -23,6 +23,11 @@ struct PrivateKeyWithMetadata: Equatable {
         return PublicKeyWithMetadata(publicKey: privateKey.publicKey, createdAt: creationDate)
     }
 
+    /// Public key
+    var publicKey: PublicKey {
+        return privateKey.publicKey
+    }
+
     /// Initialize the new private key
     init() {
         privateKey = PrivateKey()

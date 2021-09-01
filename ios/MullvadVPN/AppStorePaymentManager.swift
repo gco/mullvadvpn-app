@@ -119,17 +119,11 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
         }
     }
 
-    private enum ExlcusivityCategory {
-        case sendReceipt
-    }
-
     /// A shared instance of `AppStorePaymentManager`
     static let shared = AppStorePaymentManager(queue: SKPaymentQueue.default())
 
     private let logger = Logger(label: "AppStorePaymentManager")
-
-    private let operationQueue = OperationQueue()
-    private lazy var exclusivityController = ExclusivityController<ExlcusivityCategory>(operationQueue: operationQueue)
+    private let receiptSubmissionQueue = DispatchQueue(label: "AppStorePaymentReceiptSubmissionQueue")
 
     private let rest = MullvadRest()
     private let queue: SKPaymentQueue
@@ -213,22 +207,31 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
     {
         let productIdentifiers = productIdentifiers.productIdentifiersSet
 
-        let retryStrategy = RetryStrategy(
+        let retryStrategy = PromiseRetryStrategy(
             maxRetries: 10,
             waitStrategy: .constant(2),
             waitTimerType: .deadline
         )
 
-        let operation = RetryOperation(strategy: retryStrategy) { () -> ProductsRequestOperation in
+        let promise = Result<SKProductsResponse, Swift.Error>.Promise { resolver in
+            let delegate = SKProductsRequestBlockDelegate()
+            delegate.didFailWithError = { error in
+                resolver.resolve(value: .failure(error))
+            }
+            delegate.didReceiveResponse = { products in
+                resolver.resolve(value: .success(products))
+            }
+
             let request = SKProductsRequest(productIdentifiers: productIdentifiers)
-            return ProductsRequestOperation(request: request)
+            request.delegate = delegate
+            request.start()
         }
 
-        operation.addDidFinishBlockObserver { (operation, result) in
-            completionHandler(result)
+        promise.observe { completion in
+            if let result = completion.unwrappedValue {
+                completionHandler(result)
+            }
         }
-
-        operationQueue.addOperation(operation)
     }
 
     func addPayment(_ payment: SKPayment, for accountToken: String) {
@@ -253,26 +256,23 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
         AppStoreReceipt.fetch(forceRefresh: forceRefresh) { (result) in
             switch result {
             case .success(let receiptData):
-                let payload = TokenPayload<CreateApplePaymentRequest>(token: accountToken, payload: CreateApplePaymentRequest(receiptString: receiptData))
+                _ = self.rest.createApplePayment(token: accountToken, receiptString: receiptData)
+                    .block(on: self.receiptSubmissionQueue)
+                    .observe { completion in
+                        let result = completion.unwrappedValue!
+                        switch result {
+                        case .success(let response):
+                            self.logger.info("AppStore receipt was processed. Time added: \(response.timeAdded), New expiry: \(response.newExpiry)")
 
-                let createApplePaymentOperation = self.rest.createApplePayment()
-                    .operation(payload: payload)
+                            completionHandler(.success(response))
 
-                createApplePaymentOperation.addDidFinishBlockObserver { (operation, result) in
-                    switch result {
-                    case .success(let response):
-                        self.logger.info("AppStore receipt was processed. Time added: \(response.timeAdded), New expiry: \(response.newExpiry)")
+                        case .failure(let error):
+                            self.logger.error(chainedError: error, message: "Failed to upload the AppStore receipt")
 
-                        completionHandler(.success(response))
-
-                    case .failure(let error):
-                        self.logger.error(chainedError: error, message: "Failed to upload the AppStore receipt")
-
-                        completionHandler(.failure(.sendReceipt(error)))
+                            completionHandler(.failure(.sendReceipt(error)))
+                        }
                     }
-                }
 
-                self.exclusivityController.addOperation(createApplePaymentOperation, categories: [.sendReceipt])
 
             case .failure(let error):
                 self.logger.error(chainedError: error, message: "Failed to fetch the AppStore receipt")
@@ -375,37 +375,24 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
 
 }
 
-private class ProductsRequestOperation: AsyncOperation, OutputOperation, SKProductsRequestDelegate {
+fileprivate class SKProductsRequestBlockDelegate: NSObject, SKProductsRequestDelegate {
     typealias Output = Result<SKProductsResponse, Error>
 
-    private let request: SKProductsRequest
-
-    init(request: SKProductsRequest) {
-        self.request = request
-        super.init()
-
-        request.delegate = self
-    }
-
-    override func main() {
-        request.start()
-    }
-
-    override func operationDidCancel() {
-        request.cancel()
-    }
+    var didFinish: (() -> Void)?
+    var didFailWithError: ((Error) -> Void)?
+    var didReceiveResponse: ((SKProductsResponse) -> Void)?
 
     // - MARK: SKProductsRequestDelegate
 
     func requestDidFinish(_ request: SKRequest) {
-        // no-op
+        didFinish?()
     }
 
     func request(_ request: SKRequest, didFailWithError error: Error) {
-        finish(with: .failure(error))
+        didFailWithError?(error)
     }
 
     func productsRequest(_ request: SKProductsRequest, didReceive response: SKProductsResponse) {
-        finish(with: .success(response))
+        didReceiveResponse?(response)
     }
 }

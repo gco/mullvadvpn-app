@@ -36,6 +36,10 @@
 		581503A424D6F1EC00C9C50E /* ChainedError+Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 581503A224D6F1EC00C9C50E /* ChainedError+Logger.swift */; };
 		581503A624D6F4AE00C9C50E /* Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 581503A524D6F4AE00C9C50E /* Logging.swift */; };
 		581503A724D6F4AE00C9C50E /* Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 581503A524D6F4AE00C9C50E /* Logging.swift */; };
+		5819244726DF848100506469 /* Promise+Retry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5819244626DF848100506469 /* Promise+Retry.swift */; };
+		5819244826DF848100506469 /* Promise+Retry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5819244626DF848100506469 /* Promise+Retry.swift */; };
+		5819244A26DF8ADB00506469 /* Promise+Delay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5819244926DF8ADB00506469 /* Promise+Delay.swift */; };
+		5819244B26DF8ADB00506469 /* Promise+Delay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5819244926DF8ADB00506469 /* Promise+Delay.swift */; };
 		581CBCEE229826FD00727D7F /* StaticTableViewDataSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 581CBCED229826FD00727D7F /* StaticTableViewDataSource.swift */; };
 		581FC4FA2695ACE100AA97BA /* Account.strings in Resources */ = {isa = PBXBuildFile; fileRef = 581FC4F82695ACE100AA97BA /* Account.strings */; };
 		5823FA5126CA690600283BF8 /* OSLogHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA4F26CA690600283BF8 /* OSLogHandler.swift */; };
@@ -369,6 +373,8 @@
 		5815039C24D6ECE600C9C50E /* TextFileOutputStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextFileOutputStream.swift; sourceTree = "<group>"; };
 		581503A224D6F1EC00C9C50E /* ChainedError+Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChainedError+Logger.swift"; sourceTree = "<group>"; };
 		581503A524D6F4AE00C9C50E /* Logging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logging.swift; sourceTree = "<group>"; };
+		5819244626DF848100506469 /* Promise+Retry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Promise+Retry.swift"; sourceTree = "<group>"; };
+		5819244926DF8ADB00506469 /* Promise+Delay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Promise+Delay.swift"; sourceTree = "<group>"; };
 		581CBCED229826FD00727D7F /* StaticTableViewDataSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaticTableViewDataSource.swift; sourceTree = "<group>"; };
 		581FC4F92695ACE100AA97BA /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Account.strings; sourceTree = "<group>"; };
 		5823FA4F26CA690600283BF8 /* OSLogHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OSLogHandler.swift; sourceTree = "<group>"; };
@@ -917,6 +923,8 @@
 				58E1337426D2BEC400CC316B /* Promise+Optional.swift */,
 				58E1337826D2BEDD00CC316B /* Promise+ReceiveOn.swift */,
 				58E1338026D2BF5C00CC316B /* Promise+Result.swift */,
+				5819244626DF848100506469 /* Promise+Retry.swift */,
+				5819244926DF8ADB00506469 /* Promise+Delay.swift */,
 			);
 			path = Promise;
 			sourceTree = "<group>";
@@ -1228,8 +1236,10 @@
 				5896AE7F246ACE76005B36CB /* Keychain.swift in Sources */,
 				58E1336B26D2BE3700CC316B /* PromiseObserver.swift in Sources */,
 				5857F23C24C8449500CF6F47 /* OperationObserver.swift in Sources */,
+				5819244826DF848100506469 /* Promise+Retry.swift in Sources */,
 				58871D1825D5359B002297FA /* MullvadRest.swift in Sources */,
 				58871D2325D535D2002297FA /* IPAddressRange+Codable.swift in Sources */,
+				5819244B26DF8ADB00506469 /* Promise+Delay.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1275,6 +1285,7 @@
 				5850367F25A481D800A43E93 /* IPAddressRange+Codable.swift in Sources */,
 				5871FB96254ADE4E0051A0A4 /* ConsolidatedApplicationLog.swift in Sources */,
 				58FEEB58260B662E00A621A8 /* AutomaticKeyboardResponder.swift in Sources */,
+				5819244726DF848100506469 /* Promise+Retry.swift in Sources */,
 				58FAEDEF245069C700CB0F5B /* KeychainAttributes.swift in Sources */,
 				585DA87A26B024F900B8C587 /* RelayCacheError.swift in Sources */,
 				58CB0EE024B86751001EF0D8 /* MullvadRest.swift in Sources */,
@@ -1320,6 +1331,7 @@
 				582BB1AF229566420055B6EF /* SettingsCell.swift in Sources */,
 				5873884D239E6D7E00E96C4E /* EmbeddedViewContainerView.swift in Sources */,
 				58F3C0A4249CB069003E76BE /* HeaderBarView.swift in Sources */,
+				5819244A26DF8ADB00506469 /* Promise+Delay.swift in Sources */,
 				585FE2F124E1365400439C50 /* LogStreamer.swift in Sources */,
 				58B9EB132488ED2100095626 /* AlertPresenter.swift in Sources */,
 				587A01FC23F1F0BE00B68763 /* SimulatorTunnelProviderHost.swift in Sources */,

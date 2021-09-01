@@ -585,31 +585,20 @@ class ProblemReportViewController: UIViewController, UITextFieldDelegate, Condit
     private func sendProblemReport() {
         let viewModel = Self.persistentViewModel
 
-        willSendProblemReport()
-        sendProblemReportHelper(with: viewModel) { [weak self] (result) in
-            self?.didSendProblemReport(viewModel: viewModel, result: result)
-        }
-    }
-
-    private func sendProblemReportHelper(with viewModel: ViewModel, completion: @escaping (Result<(), RestError>) -> Void) {
         let log = consolidatedLog.string
         let metadata = consolidatedLog.metadata.reduce(into: [:]) { (output, entry) in
             output[entry.key.rawValue] = entry.value
         }
 
         let request = ProblemReportRequest(address: viewModel.email, message: viewModel.message, log: log, metadata: metadata)
-        let result = mullvadRest.sendProblemReport().dataTask(payload: request) { (result) in
-            DispatchQueue.main.async {
-                completion(result)
-            }
-        }
 
-        switch result {
-        case .success(let task):
-            task.resume()
-        case .failure(let error):
-            completion(.failure(error))
-        }
+        willSendProblemReport()
+
+        mullvadRest.sendProblemReport(request)
+            .receive(on: .main)
+            .observe { completion in
+                self.didSendProblemReport(viewModel: viewModel, result: completion.unwrappedValue!)
+            }
     }
 
     // MARK: - Input fields' notifications
