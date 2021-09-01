@@ -1,5 +1,5 @@
 //
-//  RelayCache.swift
+//  RelayCacheTracker.swift
 //  MullvadVPN
 //
 //  Created by pronebird on 05/06/2019.
@@ -12,38 +12,8 @@ import Logging
 /// Periodic update interval
 private let kUpdateIntervalSeconds = 3600
 
-/// Error emitted by read and write functions
-enum RelayCacheError: ChainedError {
-    case readCache(Error)
-    case readPrebundledRelays(Error)
-    case decodePrebundledRelays(Error)
-    case writeCache(Error)
-    case encodeCache(Error)
-    case decodeCache(Error)
-    case rest(RestError)
-
-    var errorDescription: String? {
-        switch self {
-        case .encodeCache:
-            return "Encode cache error"
-        case .decodeCache:
-            return "Decode cache error"
-        case .readCache:
-            return "Read cache error"
-        case .readPrebundledRelays:
-            return "Read pre-bundled relays error"
-        case .decodePrebundledRelays:
-            return "Decode pre-bundled relays error"
-        case .writeCache:
-            return "Write cache error"
-        case .rest:
-            return "REST error"
-        }
-    }
-}
-
 protocol RelayCacheObserver: AnyObject {
-    func relayCache(_ relayCache: RelayCache, didUpdateCachedRelays cachedRelays: CachedRelays)
+    func relayCache(_ relayCache: RelayCacheTracker, didUpdateCachedRelays cachedRelays: CachedRelays)
 }
 
 private class AnyRelayCacheObserver: WeakObserverBox, RelayCacheObserver {
@@ -56,7 +26,7 @@ private class AnyRelayCacheObserver: WeakObserverBox, RelayCacheObserver {
         self.inner = inner
     }
 
-    func relayCache(_ relayCache: RelayCache, didUpdateCachedRelays cachedRelays: CachedRelays) {
+    func relayCache(_ relayCache: RelayCacheTracker, didUpdateCachedRelays cachedRelays: CachedRelays) {
         inner?.relayCache(relayCache, didUpdateCachedRelays: cachedRelays)
     }
 
@@ -79,7 +49,7 @@ enum RelayFetchResult {
     case newContent
 }
 
-class RelayCache {
+class RelayCacheTracker {
     private let logger = Logger(label: "RelayCache")
 
     /// Mullvad REST client
@@ -88,8 +58,11 @@ class RelayCache {
     /// The cache location used by the class instance
     private let cacheFileURL: URL
 
+    /// The location of prebundled `relays.json`
+    private let prebundledRelaysFileURL: URL
+
     /// A dispatch queue used for thread synchronization
-    private let dispatchQueue = DispatchQueue(label: "net.mullvad.MullvadVPN.RelayCache")
+    private let dispatchQueue = DispatchQueue(label: "RelayCacheTracker")
 
     /// A timer source used for periodic updates
     private var timerSource: DispatchSourceTimer?
@@ -100,27 +73,23 @@ class RelayCache {
     /// A download task used for relay RPC request
     private var downloadTask: URLSessionTask?
 
-    /// The default cache file location
-    static var defaultCacheFileURL: URL {
-        let appGroupIdentifier = ApplicationConfiguration.securityGroupIdentifier
-        let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)!
-
-        return containerURL.appendingPathComponent("relays.json")
-    }
-
-    /// The path to the pre-bundled relays.json file
-    private static var preBundledRelaysFileURL: URL {
-        return Bundle.main.url(forResource: "relays", withExtension: "json")!
-    }
-
     /// Observers
     private let observerList = ObserverList<AnyRelayCacheObserver>()
 
     /// A shared instance of `RelayCache`
-    static let shared = RelayCache(cacheFileURL: defaultCacheFileURL)
+    static let shared: RelayCacheTracker = {
+        let cacheFileURL = RelayCacheIO.defaultCacheFileURL(forSecurityApplicationGroupIdentifier: ApplicationConfiguration.securityGroupIdentifier)!
+        let prebundledRelaysFileURL = RelayCacheIO.preBundledRelaysFileURL!
 
-    private init(cacheFileURL: URL) {
+        return RelayCacheTracker(
+            cacheFileURL: cacheFileURL,
+            prebundledRelaysFileURL: prebundledRelaysFileURL
+        )
+    }()
+
+    private init(cacheFileURL: URL, prebundledRelaysFileURL: URL) {
         self.cacheFileURL = cacheFileURL
+        self.prebundledRelaysFileURL = prebundledRelaysFileURL
     }
 
     func startPeriodicUpdates(queue: DispatchQueue?, completionHandler: (() -> Void)?) {
@@ -128,7 +97,7 @@ class RelayCache {
             if !self.isPeriodicUpdatesEnabled {
                 self.isPeriodicUpdatesEnabled = true
 
-                switch Self.read(cacheFileURL: self.cacheFileURL) {
+                switch RelayCacheIO.read(cacheFileURL: self.cacheFileURL) {
                 case .success(let cachedRelayList):
                     if let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelayList.updatedAt) {
                         let startTime = Self.makeWalltime(fromDate: nextUpdate)
@@ -170,18 +139,13 @@ class RelayCache {
         }
     }
 
-    /// Read the relay cache from disk
+    /// Read the relay cache from disk.
     func read(completionHandler: @escaping (Result<CachedRelays, RelayCacheError>) -> Void) {
         dispatchQueue.async {
-            let result = Self.read(cacheFileURL: self.cacheFileURL)
-                .flatMapError { (error) -> Result<CachedRelays, RelayCacheError> in
-                    switch error {
-                    case .decodeCache, .readCache(CocoaError.fileReadNoSuchFile):
-                        return Self.readPrebundledRelays(fileURL: Self.preBundledRelaysFileURL)
-                    default:
-                        return .failure(error)
-                    }
-            }
+            let result = RelayCacheIO.readWithFallback(
+                cacheFileURL: self.cacheFileURL,
+                preBundledRelaysFileURL: self.prebundledRelaysFileURL
+            )
             completionHandler(result)
         }
     }
@@ -199,7 +163,7 @@ class RelayCache {
     // MARK: - Private instance methods
 
     private func _updateRelays(completionHandler: ((RelayFetchResult) -> Void)?) {
-        switch Self.read(cacheFileURL: self.cacheFileURL) {
+        switch RelayCacheIO.read(cacheFileURL: self.cacheFileURL) {
         case .success(let cachedRelays):
             let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelays.updatedAt)
 
@@ -229,7 +193,7 @@ class RelayCache {
                 self.logger.info("Downloaded \(numRelays) relays")
 
                 let cachedRelays = CachedRelays(etag: etag, relays: relays, updatedAt: Date())
-                switch Self.write(cacheFileURL: self.cacheFileURL, record: cachedRelays) {
+                switch RelayCacheIO.write(cacheFileURL: self.cacheFileURL, record: cachedRelays) {
                 case .success:
                     self.observerList.forEach { (observer) in
                         observer.relayCache(self, didUpdateCachedRelays: cachedRelays)
@@ -248,7 +212,7 @@ class RelayCache {
                 var cachedRelays = previouslyCachedRelays!
                 cachedRelays.updatedAt = Date()
 
-                switch Self.write(cacheFileURL: self.cacheFileURL, record: cachedRelays) {
+                switch RelayCacheIO.write(cacheFileURL: self.cacheFileURL, record: cachedRelays) {
                 case .success:
                     completionHandler?(.sameContent)
 
@@ -303,76 +267,6 @@ class RelayCache {
 
     // MARK: - Private class methods
 
-    /// Safely read the cache file from disk using file coordinator
-    private class func read(cacheFileURL: URL) -> Result<CachedRelays, RelayCacheError> {
-        var result: Result<CachedRelays, RelayCacheError>?
-        let fileCoordinator = NSFileCoordinator(filePresenter: nil)
-
-        let accessor = { (fileURLForReading: URL) -> Void in
-            // Decode data from disk
-            result = Result { try Data(contentsOf: fileURLForReading) }
-                .mapError { RelayCacheError.readCache($0) }
-                .flatMap { (data) in
-                    Result { try JSONDecoder().decode(CachedRelays.self, from: data) }
-                        .mapError { RelayCacheError.decodeCache($0) }
-                }
-        }
-
-        var error: NSError?
-        fileCoordinator.coordinate(readingItemAt: cacheFileURL,
-                                   options: [.withoutChanges],
-                                   error: &error,
-                                   byAccessor: accessor)
-
-        if let error = error {
-            result = .failure(.readCache(error))
-        }
-
-        return result!
-    }
-
-    private class func readPrebundledRelays(fileURL: URL) -> Result<CachedRelays, RelayCacheError> {
-        return Result { try Data(contentsOf: fileURL) }
-            .mapError { RelayCacheError.readPrebundledRelays($0) }
-            .flatMap { (data) -> Result<CachedRelays, RelayCacheError> in
-                return Result { try MullvadRest.makeJSONDecoder().decode(ServerRelaysResponse.self, from: data) }
-                    .mapError { RelayCacheError.decodePrebundledRelays($0) }
-                    .map { (relays) -> CachedRelays in
-                        return CachedRelays(
-                            relays: relays,
-                            updatedAt: Date(timeIntervalSince1970: 0)
-                        )
-                }
-        }
-    }
-
-    /// Safely write the cache file on disk using file coordinator
-    private class func write(cacheFileURL: URL, record: CachedRelays) -> Result<(), RelayCacheError> {
-        var result: Result<(), RelayCacheError>?
-        let fileCoordinator = NSFileCoordinator(filePresenter: nil)
-
-        let accessor = { (fileURLForWriting: URL) -> Void in
-            result = Result { try JSONEncoder().encode(record) }
-                .mapError { RelayCacheError.encodeCache($0) }
-                .flatMap { (data) in
-                    Result { try data.write(to: fileURLForWriting) }
-                        .mapError { RelayCacheError.writeCache($0) }
-                }
-        }
-
-        var error: NSError?
-        fileCoordinator.coordinate(writingItemAt: cacheFileURL,
-                                   options: [.forReplacing],
-                                   error: &error,
-                                   byAccessor: accessor)
-
-        if let error = error {
-            result = .failure(.writeCache(error))
-        }
-
-        return result!
-    }
-
     private class func makeWalltime(fromDate date: Date) -> DispatchWallTime {
         let (seconds, frac) = modf(date.timeIntervalSince1970)
 
@@ -402,16 +296,4 @@ class RelayCache {
             return false
         }
     }
-}
-
-/// A struct that represents the relay cache on disk
-struct CachedRelays: Codable {
-    /// E-tag returned by server
-    var etag: String?
-
-    /// The relay list stored within the cache entry
-    var relays: ServerRelaysResponse
-
-    /// The date when this cache was last updated
-    var updatedAt: Date
 }

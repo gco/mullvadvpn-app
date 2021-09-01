@@ -76,12 +76,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         self.window?.rootViewController = launchController
 
         // Update relays
-        RelayCache.shared.addObserver(self)
-        RelayCache.shared.updateRelays(completionHandler: nil)
+        RelayCacheTracker.shared.addObserver(self)
+        RelayCacheTracker.shared.updateRelays(completionHandler: nil)
 
         // Load initial relays
         self.logger?.debug("Load relays")
-        RelayCache.shared.read { (result) in
+        RelayCacheTracker.shared.read { (result) in
             DispatchQueue.main.async {
                 switch result {
                 case .success(let cachedRelays):
@@ -139,7 +139,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // MARK: - Background refresh
 
     func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-        RelayCache.shared.updateRelays { fetchResult in
+        RelayCacheTracker.shared.updateRelays { fetchResult in
             let backgroundFetchResult: UIBackgroundFetchResult
             switch fetchResult {
             case .newContent:
@@ -718,7 +718,7 @@ extension AppDelegate: UIAdaptivePresentationControllerDelegate {
 
 extension AppDelegate: RelayCacheObserver {
 
-    func relayCache(_ relayCache: RelayCache, didUpdateCachedRelays cachedRelays: CachedRelays) {
+    func relayCache(_ relayCache: RelayCacheTracker, didUpdateCachedRelays cachedRelays: CachedRelays) {
         DispatchQueue.main.async {
             self.cachedRelays = cachedRelays
         }
