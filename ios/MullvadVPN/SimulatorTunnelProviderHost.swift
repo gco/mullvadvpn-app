@@ -17,10 +17,10 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
 
     private var connectionInfo: TunnelConnectionInfo?
     private let providerLogger = Logger(label: "SimulatorTunnelProviderHost")
-    private let dispatchQueue = DispatchQueue(label: "SimulatorTunnelProviderHostQueue")
+    private let stateQueue = DispatchQueue(label: "SimulatorTunnelProviderHostQueue")
 
     override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
-        dispatchQueue.async {
+        stateQueue.async {
             let tunnelOptions = PacketTunnelOptions(rawOptions: options ?? [:])
             let appSelectorResult = Result { try tunnelOptions.getSelectorResult() }
 
@@ -42,7 +42,7 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
     }
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        dispatchQueue.async {
+        stateQueue.async {
             self.connectionInfo = nil
 
             completionHandler()
@@ -52,7 +52,7 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
     override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
         PacketTunnelIpcHandler.decodeRequest(messageData: messageData)
             .asPromise()
-            .receive(on: dispatchQueue)
+            .receive(on: stateQueue)
             .onFailure { error in
                 self.providerLogger.error(chainedError: error, message: "Failed to decode the IPC request.")
             }
