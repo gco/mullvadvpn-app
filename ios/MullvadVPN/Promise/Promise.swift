@@ -183,7 +183,7 @@ final class Promise<Value> {
 
             state = .executing
 
-            let resolver = PromiseResolver(promise: self, executionContext: queue)
+            let resolver = PromiseResolver(promise: self, queue: queue)
 
             queue?.async { block(resolver) } ?? block(resolver)
         }
@@ -229,13 +229,16 @@ final class PromiseCancellationToken {
 }
 
 struct PromiseResolver<Value> {
+    /// Target promise.
     private let promise: Promise<Value>
-    let executionContext: DispatchQueue?
+
+    /// Queue on which promise is going to be executed.
+    let queue: DispatchQueue?
 
     /// Private initializer.
-    fileprivate init(promise: Promise<Value>, executionContext: DispatchQueue?) {
+    fileprivate init(promise: Promise<Value>, queue: DispatchQueue?) {
         self.promise = promise
-        self.executionContext = executionContext
+        self.queue = queue
     }
 
     /// Resolve the promise with `PromiseCompletion`.
