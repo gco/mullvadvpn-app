@@ -8,25 +8,26 @@
 
 import Foundation
 
-enum PromiseDelayTimerType {
-    case deadline
-    case walltime
+extension Promise {
 
-    fileprivate func scheduleTimer(_ timer: DispatchSourceTimer, timeInterval: DispatchTimeInterval) {
-        switch self {
-        case .deadline:
-            timer.schedule(deadline: .now() + timeInterval)
-        case .walltime:
-            timer.schedule(wallDeadline: .now() + timeInterval)
+    enum TimerType {
+        case deadline
+        case walltime
+
+        fileprivate func scheduleTimer(_ timer: DispatchSourceTimer, timeInterval: DispatchTimeInterval) {
+            switch self {
+            case .deadline:
+                timer.schedule(deadline: .now() + timeInterval)
+            case .walltime:
+                timer.schedule(wallDeadline: .now() + timeInterval)
+            }
         }
     }
-}
 
-extension Promise {
-    func delay(by timeInterval: DispatchTimeInterval, timerType: PromiseDelayTimerType) -> Promise<Value> {
+    func delay(by timeInterval: DispatchTimeInterval, timerType: TimerType) -> Promise<Value> {
         return then { value in
             return Promise { resolver in
-                let timer = DispatchSource.makeTimerSource()
+                let timer = DispatchSource.makeTimerSource(flags: [], queue: resolver.queue)
 
                 resolver.setCancelHandler {
                     timer.cancel()
