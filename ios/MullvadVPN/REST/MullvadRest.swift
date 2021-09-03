@@ -137,7 +137,7 @@ class MullvadRest {
         return dataTaskPromise(request: request)
             .mapError(self.mapNetworkError)
             .flatMap { httpResponse, data in
-                if httpResponse.statusCode == HTTPStatus.created {
+                if httpResponse.statusCode == HTTPStatus.ok {
                     return Self.decodeSuccessResponse(AccountResponse.self, from: data)
                 } else {
                     return Self.decodeErrorResponseAndMapToServerError(from: data)
