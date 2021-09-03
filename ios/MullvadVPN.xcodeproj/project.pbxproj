@@ -49,6 +49,8 @@
 		5840250522B11AB700E4CFEC /* MullvadEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5840250322B11AB700E4CFEC /* MullvadEndpoint.swift */; };
 		584592612639B4A200EF967F /* ConsentContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584592602639B4A200EF967F /* ConsentContentView.swift */; };
 		5846226526E0D9630035F7C2 /* ProductsRequestOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5846226426E0D9630035F7C2 /* ProductsRequestOperation.swift */; };
+		5846226726E0DF960035F7C2 /* Promise+OperationQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5846226626E0DF960035F7C2 /* Promise+OperationQueue.swift */; };
+		5846226826E0DF960035F7C2 /* Promise+OperationQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5846226626E0DF960035F7C2 /* Promise+OperationQueue.swift */; };
 		5846226A26E0E6FA0035F7C2 /* ReceiptRefreshOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5846226926E0E6FA0035F7C2 /* ReceiptRefreshOperation.swift */; };
 		5846227126E229F20035F7C2 /* AppStoreSubscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5846227026E229F20035F7C2 /* AppStoreSubscription.swift */; };
 		5846227326E22A160035F7C2 /* AppStorePaymentObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5846227226E22A160035F7C2 /* AppStorePaymentObserver.swift */; };
@@ -358,6 +360,7 @@
 		584592602639B4A200EF967F /* ConsentContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentContentView.swift; sourceTree = "<group>"; };
 		5845F841236CBACD00B2D93C /* PacketTunnelIpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelIpc.swift; sourceTree = "<group>"; };
 		5846226426E0D9630035F7C2 /* ProductsRequestOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductsRequestOperation.swift; sourceTree = "<group>"; };
+		5846226626E0DF960035F7C2 /* Promise+OperationQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Promise+OperationQueue.swift"; sourceTree = "<group>"; };
 		5846226926E0E6FA0035F7C2 /* ReceiptRefreshOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptRefreshOperation.swift; sourceTree = "<group>"; };
 		5846227026E229F20035F7C2 /* AppStoreSubscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreSubscription.swift; sourceTree = "<group>"; };
 		5846227226E22A160035F7C2 /* AppStorePaymentObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStorePaymentObserver.swift; sourceTree = "<group>"; };
@@ -877,6 +880,7 @@
 				58E1337426D2BEC400CC316B /* Promise+Optional.swift */,
 				58E1337826D2BEDD00CC316B /* Promise+ReceiveOn.swift */,
 				58E1338026D2BF5C00CC316B /* Promise+Result.swift */,
+				5846226626E0DF960035F7C2 /* Promise+OperationQueue.swift */,
 			);
 			path = Promise;
 			sourceTree = "<group>";
@@ -1158,6 +1162,7 @@
 				585DA8A626B14F5100B8C587 /* SSLPinningURLSessionDelegate.swift in Sources */,
 				58B0A2AC238EE6D500BC001D /* IPAddress+Codable.swift in Sources */,
 				58B0A2AD238EE6EC00BC001D /* MullvadEndpoint.swift in Sources */,
+				5846226826E0DF960035F7C2 /* Promise+OperationQueue.swift in Sources */,
 				5860392B26DCEE6300554C79 /* PromiseCompletion.swift in Sources */,
 				58FAEDF4245088B300CB0F5B /* KeychainError.swift in Sources */,
 				5860392726D91B8400554C79 /* PromiseTests.swift in Sources */,
@@ -1262,6 +1267,7 @@
 				581503A124D6F01F00C9C50E /* LogRotation.swift in Sources */,
 				58B8743222B25A7600015324 /* WireguardAssociatedAddresses.swift in Sources */,
 				585B4B8726D9098900555C4C /* TunnelStateNotificationProvider.swift in Sources */,
+				5846226726E0DF960035F7C2 /* Promise+OperationQueue.swift in Sources */,
 				5850368C25A49E2200A43E93 /* PrivateKeyWithMetadata.swift in Sources */,
 				58B67B482602079E008EF58E /* RelaySelector.swift in Sources */,
 				58DF28A52417CB4B00E836B0 /* AppStorePaymentManager.swift in Sources */,
