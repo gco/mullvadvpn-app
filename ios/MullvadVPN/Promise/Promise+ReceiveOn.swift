@@ -13,9 +13,15 @@ extension Promise {
     func receive(on queue: DispatchQueue) -> Promise<Value> {
         return Promise<Value> { resolver in
             _ = self.observe { completion in
-                queue.async {
+                let work = DispatchWorkItem {
                     resolver.resolve(completion: completion, queue: queue)
                 }
+
+                resolver.setCancelHandler {
+                    work.cancel()
+                }
+
+                queue.async(execute: work)
             }
         }
     }
