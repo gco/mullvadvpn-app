@@ -14,6 +14,8 @@ class ExclusivityController {
 
     static let shared = ExclusivityController()
 
+    private init() {}
+
     func addOperation(_ operation: Operation, categories: [String]) {
         lock.withCriticalBlock {
             categories.forEach { category in
