@@ -8,62 +8,45 @@
 
 import Foundation
 
-class ExclusivityController<Category> where Category: Hashable {
-    private let operationQueue: OperationQueue
-    private let lock = NSRecursiveLock()
+class ExclusivityController {
+    private let lock = NSLock()
+    private var operations: [String: [Operation]] = [:]
 
-    private var operations: [Category: [Operation]] = [:]
-    private var observers: [Operation: NSObjectProtocol] = [:]
+    static let shared = ExclusivityController()
 
-    init(operationQueue: OperationQueue) {
-        self.operationQueue = operationQueue
-    }
-
-    func addOperation(_ operation: Operation, categories: [Category]) {
-        addOperations([operation], categories: categories)
-    }
-
-    func addOperations(_ operations: [Operation], categories: [Category]) {
+    func addOperation(_ operation: Operation, categories: [String]) {
         lock.withCriticalBlock {
-            for operation in operations {
-                for category in categories {
-                    addDependencies(operation: operation, category: category)
-                }
-
-                observers[operation] = operation.observe(\.isFinished, options: [.initial, .new]) { [weak self] (op, change) in
-                    if let isFinished = change.newValue, isFinished {
-                        self?.operationDidFinish(op, categories: categories)
-                    }
-                }
+            categories.forEach { category in
+                self._addOperation(operation, category: category)
             }
-
-            operationQueue.addOperations(operations, waitUntilFinished: false)
         }
     }
 
-    private func addDependencies(operation: Operation, category: Category) {
-        var exclusiveOperations = self.operations[category] ?? []
-
-        if let dependency = exclusiveOperations.last, !operation.dependencies.contains(dependency) {
-            operation.addDependency(dependency)
-        }
-
-        exclusiveOperations.append(operation)
-        self.operations[category] = exclusiveOperations
-    }
-
-    private func operationDidFinish(_ operation: Operation, categories: [Category]) {
+    func removeOperation(_ operation: Operation, categories: [String]) {
         lock.withCriticalBlock {
-            for category in categories {
-                var exclusiveOperations = self.operations[category] ?? []
-
-                exclusiveOperations.removeAll { (storedOperation) -> Bool in
-                    return operation == storedOperation
-                }
-
-                self.operations[category] = exclusiveOperations
+            categories.forEach { category in
+                self._removeOperation(operation, category: category)
             }
-            self.observers.removeValue(forKey: operation)
         }
+    }
+
+    private func _addOperation(_ operation: Operation, category: String) {
+        var operationsWithThisCategory = operations[category] ?? []
+
+        if let last = operationsWithThisCategory.last {
+            operation.addDependency(last)
+        }
+
+        operationsWithThisCategory.append(operation)
+
+        operations[category] = operationsWithThisCategory
+    }
+
+    private func _removeOperation(_ operation: Operation, category: String) {
+        guard var operationsWithThisCategory = operations[category],
+              let index = operationsWithThisCategory.firstIndex(of: operation) else { return }
+
+        operationsWithThisCategory.remove(at: index)
+        operations[category] = operationsWithThisCategory
     }
 }

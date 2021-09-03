@@ -10,17 +10,16 @@ import Foundation
 
 /// Asynchronous block operation
 class AsyncBlockOperation: AsyncOperation {
-    typealias Completion = OperationCompletion
+    private let block: ((@escaping () -> Void) -> Void)
 
-    private var block: ((Completion) -> Void)?
-
-    init(_ block: @escaping (Completion) -> Void) {
+    init(_ block: @escaping (@escaping () -> Void) -> Void) {
         self.block = block
         super.init()
     }
 
     override func main() {
-        block?(Completion(operation: self))
-        block = nil
+        block { [weak self] in
+            self?.finish()
+        }
     }
 }
