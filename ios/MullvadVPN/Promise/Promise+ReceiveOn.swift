@@ -9,6 +9,12 @@
 import Foundation
 
 extension Promise {
+    /// A type of timer.
+    enum TimerType {
+        case deadline
+        case walltime
+    }
+
     /// Dispatch the upstream value on another queue.
     func receive(on queue: DispatchQueue) -> Promise<Value> {
         return Promise<Value> { resolver in
@@ -27,11 +33,23 @@ extension Promise {
     }
 
     /// Dispatch the upstream value on another queue after delay.
-    func receive(on queue: DispatchQueue, after deadline: DispatchTime) -> Promise<Value> {
+    func receive(on queue: DispatchQueue, after timeInterval: DispatchTimeInterval, timerType: TimerType) -> Promise<Value> {
         return Promise<Value> { resolver in
             _ = self.observe { completion in
-                queue.asyncAfter(deadline: deadline) {
+                let work = DispatchWorkItem {
                     resolver.resolve(completion: completion, queue: queue)
+                }
+
+                resolver.setCancelHandler {
+                    work.cancel()
+                }
+
+                switch timerType {
+                case .deadline:
+                    queue.asyncAfter(deadline: .now() + timeInterval, execute: work)
+
+                case .walltime:
+                    queue.asyncAfter(wallDeadline: .now() + timeInterval, execute: work)
                 }
             }
         }
