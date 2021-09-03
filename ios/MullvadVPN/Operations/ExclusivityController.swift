@@ -17,7 +17,7 @@ class ExclusivityController {
     func addOperation(_ operation: Operation, categories: [String]) {
         lock.withCriticalBlock {
             categories.forEach { category in
-                self._addOperation(operation, category: category)
+                _addOperation(operation, category: category)
             }
         }
     }
@@ -25,7 +25,7 @@ class ExclusivityController {
     func removeOperation(_ operation: Operation, categories: [String]) {
         lock.withCriticalBlock {
             categories.forEach { category in
-                self._removeOperation(operation, category: category)
+                _removeOperation(operation, category: category)
             }
         }
     }
