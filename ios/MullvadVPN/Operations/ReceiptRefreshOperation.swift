@@ -26,7 +26,9 @@ class ReceiptRefreshOperation: AsyncOperation, SKRequestDelegate {
         request.start()
     }
 
-    override func operationDidCancel() {
+    override func cancel() {
+        super.cancel()
+
         request.cancel()
     }
 
