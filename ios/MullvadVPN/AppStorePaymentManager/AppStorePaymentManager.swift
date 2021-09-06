@@ -48,7 +48,6 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
         return queue
     }()
 
-    private let rest = MullvadRest()
     private let paymentQueue: SKPaymentQueue
 
     private var observerList = ObserverList<AnyAppStorePaymentObserver>()
@@ -155,7 +154,7 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
                 return .readReceipt(error)
             }
             .mapThen { receiptData in
-                return self.rest.createApplePayment(token: accountToken, receiptString: receiptData)
+                return RESTClient.shared.createApplePayment(token: accountToken, receiptString: receiptData)
                     .mapError { error in
                         self.logger.error(chainedError: error, message: "Failed to upload the AppStore receipt")
 

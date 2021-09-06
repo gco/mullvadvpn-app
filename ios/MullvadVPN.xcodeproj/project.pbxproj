@@ -145,7 +145,7 @@
 		587C575426D2615F005EF767 /* PacketTunnelOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587C575226D2615F005EF767 /* PacketTunnelOptions.swift */; };
 		587CBFE322807F530028DED3 /* UIColor+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587CBFE222807F530028DED3 /* UIColor+Helpers.swift */; };
 		5883A09E266A5AF7003EFFCB /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 587B7543266922BF00DEF7E9 /* Localizable.strings */; };
-		58871D1825D5359B002297FA /* MullvadRest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58CB0EDF24B86751001EF0D8 /* MullvadRest.swift */; };
+		58871D1825D5359B002297FA /* RESTClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58CB0EDF24B86751001EF0D8 /* RESTClient.swift */; };
 		58871D1E25D535A3002297FA /* WireGuardKit in Frameworks */ = {isa = PBXBuildFile; productRef = 58871D1D25D535A3002297FA /* WireGuardKit */; };
 		58871D2325D535D2002297FA /* IPAddressRange+Codable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5850366725A47AC700A43E93 /* IPAddressRange+Codable.swift */; };
 		5888AD83227B11080051EB06 /* SelectLocationCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5888AD82227B11080051EB06 /* SelectLocationCell.swift */; };
@@ -202,7 +202,7 @@
 		58C3478B26C1094F0060838B /* Promise.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585DA8AE26B9492500B8C587 /* Promise.swift */; };
 		58C3A4B222456F1B00340BDB /* AccountInputGroupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C3A4B122456F1A00340BDB /* AccountInputGroupView.swift */; };
 		58CAF4EF26025954007C5886 /* SimulatorTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58BA693023EADA6A009DC256 /* SimulatorTunnelProvider.swift */; };
-		58CB0EE024B86751001EF0D8 /* MullvadRest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58CB0EDF24B86751001EF0D8 /* MullvadRest.swift */; };
+		58CB0EE024B86751001EF0D8 /* RESTClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58CB0EDF24B86751001EF0D8 /* RESTClient.swift */; };
 		58CC40EF24A601900019D96E /* ObserverList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58CC40EE24A601900019D96E /* ObserverList.swift */; };
 		58CCA010224249A1004F3011 /* ConnectViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58CCA00F224249A1004F3011 /* ConnectViewController.swift */; };
 		58CCA01222424D11004F3011 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58CCA01122424D11004F3011 /* SettingsViewController.swift */; };
@@ -248,7 +248,7 @@
 		58F558E32695D1D800F630D0 /* Preferences.strings in Resources */ = {isa = PBXBuildFile; fileRef = 58F558E12695D1D800F630D0 /* Preferences.strings */; };
 		58F558E62695D1F200F630D0 /* ProblemReport.strings in Resources */ = {isa = PBXBuildFile; fileRef = 58F558E42695D1F200F630D0 /* ProblemReport.strings */; };
 		58F558E92695D20F00F630D0 /* SelectLocation.strings in Resources */ = {isa = PBXBuildFile; fileRef = 58F558E72695D20F00F630D0 /* SelectLocation.strings */; };
-		58F558EC2695D26A00F630D0 /* MullvadRest.strings in Resources */ = {isa = PBXBuildFile; fileRef = 58F558EA2695D26A00F630D0 /* MullvadRest.strings */; };
+		58F558EC2695D26A00F630D0 /* RESTClient.strings in Resources */ = {isa = PBXBuildFile; fileRef = 58F558EA2695D26A00F630D0 /* RESTClient.strings */; };
 		58F558EF2695D50D00F630D0 /* ProblemReportReview.strings in Resources */ = {isa = PBXBuildFile; fileRef = 58F558ED2695D50D00F630D0 /* ProblemReportReview.strings */; };
 		58F558F92696EB1C00F630D0 /* StoreKitErrors.strings in Resources */ = {isa = PBXBuildFile; fileRef = 58F558F32696EB1C00F630D0 /* StoreKitErrors.strings */; };
 		58F558FA2696EB1C00F630D0 /* TunnelManager.strings in Resources */ = {isa = PBXBuildFile; fileRef = 58F558F52696EB1C00F630D0 /* TunnelManager.strings */; };
@@ -454,7 +454,7 @@
 		58BFA5CB22A7CE1F00A6173D /* ApplicationConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationConfiguration.swift; sourceTree = "<group>"; };
 		58C3A4B122456F1A00340BDB /* AccountInputGroupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountInputGroupView.swift; sourceTree = "<group>"; };
 		58C6B35322BB87C4003C19AD /* PrivateKeyWithMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateKeyWithMetadata.swift; sourceTree = "<group>"; };
-		58CB0EDF24B86751001EF0D8 /* MullvadRest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MullvadRest.swift; sourceTree = "<group>"; };
+		58CB0EDF24B86751001EF0D8 /* RESTClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RESTClient.swift; sourceTree = "<group>"; };
 		58CC40EE24A601900019D96E /* ObserverList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObserverList.swift; sourceTree = "<group>"; };
 		58CCA00F224249A1004F3011 /* ConnectViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectViewController.swift; sourceTree = "<group>"; };
 		58CCA01122424D11004F3011 /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
@@ -494,7 +494,7 @@
 		58F558E22695D1D800F630D0 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Preferences.strings; sourceTree = "<group>"; };
 		58F558E52695D1F200F630D0 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/ProblemReport.strings; sourceTree = "<group>"; };
 		58F558E82695D20F00F630D0 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/SelectLocation.strings; sourceTree = "<group>"; };
-		58F558EB2695D26A00F630D0 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/MullvadRest.strings; sourceTree = "<group>"; };
+		58F558EB2695D26A00F630D0 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/RESTClient.strings; sourceTree = "<group>"; };
 		58F558EE2695D50D00F630D0 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/ProblemReportReview.strings; sourceTree = "<group>"; };
 		58F558F42696EB1C00F630D0 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/StoreKitErrors.strings; sourceTree = "<group>"; };
 		58F558F62696EB1C00F630D0 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/TunnelManager.strings; sourceTree = "<group>"; };
@@ -622,7 +622,7 @@
 				587B7543266922BF00DEF7E9 /* Localizable.strings */,
 				58F558DE2695BD3E00F630D0 /* Login.strings */,
 				58F559052697002000F630D0 /* Main.strings */,
-				58F558EA2695D26A00F630D0 /* MullvadRest.strings */,
+				58F558EA2695D26A00F630D0 /* RESTClient.strings */,
 				58F558E12695D1D800F630D0 /* Preferences.strings */,
 				58F558E42695D1F200F630D0 /* ProblemReport.strings */,
 				58F558ED2695D50D00F630D0 /* ProblemReportReview.strings */,
@@ -662,7 +662,7 @@
 		585DA87F26B0268500B8C587 /* REST */ = {
 			isa = PBXGroup;
 			children = (
-				58CB0EDF24B86751001EF0D8 /* MullvadRest.swift */,
+				58CB0EDF24B86751001EF0D8 /* RESTClient.swift */,
 				585DA88926B027A300B8C587 /* RestCoding.swift */,
 				585DA88626B0277200B8C587 /* RestError.swift */,
 				585DA88326B0270700B8C587 /* ServerRelaysResponse.swift */,
@@ -1123,7 +1123,7 @@
 				58F558FE2696F09100F630D0 /* KeyboardNavigation.strings in Resources */,
 				58F5590C2697002100F630D0 /* AppDelegate.strings in Resources */,
 				581FC4FA2695ACE100AA97BA /* Account.strings in Resources */,
-				58F558EC2695D26A00F630D0 /* MullvadRest.strings in Resources */,
+				58F558EC2695D26A00F630D0 /* RESTClient.strings in Resources */,
 				582CFEEA269463B80072883A /* Settings.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1194,7 +1194,7 @@
 				5896AE7F246ACE76005B36CB /* Keychain.swift in Sources */,
 				5846227A26E24F1F0035F7C2 /* ExclusivityController.swift in Sources */,
 				58E1336B26D2BE3700CC316B /* PromiseObserver.swift in Sources */,
-				58871D1825D5359B002297FA /* MullvadRest.swift in Sources */,
+				58871D1825D5359B002297FA /* RESTClient.swift in Sources */,
 				58871D2325D535D2002297FA /* IPAddressRange+Codable.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1243,7 +1243,7 @@
 				5846227326E22A160035F7C2 /* AppStorePaymentObserver.swift in Sources */,
 				58FAEDEF245069C700CB0F5B /* KeychainAttributes.swift in Sources */,
 				585DA87A26B024F900B8C587 /* RelayCacheError.swift in Sources */,
-				58CB0EE024B86751001EF0D8 /* MullvadRest.swift in Sources */,
+				58CB0EE024B86751001EF0D8 /* RESTClient.swift in Sources */,
 				5846226A26E0E6FA0035F7C2 /* ReceiptRefreshOperation.swift in Sources */,
 				58E1337526D2BEC400CC316B /* Promise+Optional.swift in Sources */,
 				58293FB125124117005D0BB5 /* CustomTextField.swift in Sources */,
@@ -1515,12 +1515,12 @@
 			name = SelectLocation.strings;
 			sourceTree = "<group>";
 		};
-		58F558EA2695D26A00F630D0 /* MullvadRest.strings */ = {
+		58F558EA2695D26A00F630D0 /* RESTClient.strings */ = {
 			isa = PBXVariantGroup;
 			children = (
 				58F558EB2695D26A00F630D0 /* en */,
 			);
-			name = MullvadRest.strings;
+			name = RESTClient.strings;
 			sourceTree = "<group>";
 		};
 		58F558ED2695D50D00F630D0 /* ProblemReportReview.strings */ = {

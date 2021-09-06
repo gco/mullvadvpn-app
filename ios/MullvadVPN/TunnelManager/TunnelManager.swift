@@ -134,7 +134,6 @@ class TunnelManager {
     private let stateQueue = DispatchQueue(label: "TunnelManagerStateQueue")
     private let tunnelQueue = DispatchQueue(label: "TunnelManagerOperationQueue")
 
-    private let rest = MullvadRest()
     private var tunnelProvider: TunnelProviderManagerType?
     private var tunnelIpc: PacketTunnelIpc?
     private var tunnelConnectionInfoToken: PromiseCancellationToken?
@@ -459,7 +458,7 @@ class TunnelManager {
                 return
             }
 
-            self.rest.getWireguardKey(token: tunnelInfo.token, publicKey: tunnelInfo.tunnelSettings.interface.publicKey)
+            RESTClient.shared.getWireguardKey(token: tunnelInfo.token, publicKey: tunnelInfo.tunnelSettings.interface.publicKey)
                 .map { _ in
                     return true
                 }
@@ -754,7 +753,7 @@ class TunnelManager {
     }
 
     private func pushWireguardKeyAndUpdateSettings(accountToken: String, publicKey: PublicKey) -> Result<TunnelSettings, Error>.Promise {
-        return rest.pushWireguardKey(token: accountToken, publicKey: publicKey)
+        return RESTClient.shared.pushWireguardKey(token: accountToken, publicKey: publicKey)
             .mapError { error in
                 return .pushWireguardKey(error)
             }
@@ -769,7 +768,7 @@ class TunnelManager {
     }
 
     private func removeWireguardKeyFromServer(accountToken: String, publicKey: PublicKey) -> Result<Bool, Error>.Promise {
-        return rest.deleteWireguardKey(token: accountToken, publicKey: publicKey)
+        return RESTClient.shared.deleteWireguardKey(token: accountToken, publicKey: publicKey)
             .map { _ in
                 return true
             }
@@ -788,7 +787,7 @@ class TunnelManager {
         newPrivateKey: PrivateKeyWithMetadata
     ) -> Result<TunnelSettings, Error>.Promise
     {
-        return rest.replaceWireguardKey(token: accountToken, oldPublicKey: oldPublicKey.publicKey, newPublicKey: newPrivateKey.publicKey)
+        return RESTClient.shared.replaceWireguardKey(token: accountToken, oldPublicKey: oldPublicKey.publicKey, newPublicKey: newPrivateKey.publicKey)
             .mapError { error in
                 return .replaceWireguardKey(error)
             }

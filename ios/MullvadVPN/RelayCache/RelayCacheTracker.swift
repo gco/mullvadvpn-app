@@ -48,10 +48,6 @@ enum RelayFetchResult {
 
 class RelayCacheTracker {
     private let logger = Logger(label: "RelayCacheTracker")
-
-    /// Mullvad REST client
-    private let rest = MullvadRest()
-
     /// The cache location used by the class instance
     private let cacheFileURL: URL
 
@@ -172,7 +168,7 @@ class RelayCacheTracker {
     // MARK: - Private instance methods
 
     private func downloadRelays(previouslyCachedRelays: CachedRelays?) -> Result<RelayFetchResult, RelayCacheError>.Promise {
-        return rest.getRelays(etag: previouslyCachedRelays?.etag)
+        return RESTClient.shared.getRelays(etag: previouslyCachedRelays?.etag)
             .receive(on: stateQueue)
             .mapError { error in
                 self.logger.error(chainedError: error, message: "Failed to download relays")

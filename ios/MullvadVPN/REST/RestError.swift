@@ -8,7 +8,7 @@
 
 import Foundation
 
-/// An error type returned by `MullvadRest`
+/// An error type returned by `RESTClient`
 enum RestError: ChainedError {
     /// A failure to encode the payload
     case encodePayload(Error)
@@ -72,14 +72,14 @@ struct ServerErrorResponse: LocalizedError, Decodable, Equatable {
         case Code.keyLimitReached.rawValue:
             return NSLocalizedString(
                 "KEY_LIMIT_REACHED_ERROR_DESCRIPTION",
-                tableName: "MullvadRest",
+                tableName: "RESTClient",
                 value: "Too many WireGuard keys in use.",
                 comment: ""
             )
         case Code.invalidAccount.rawValue:
             return NSLocalizedString(
                 "INVALID_ACCOUNT_ERROR_DESCRIPTION",
-                tableName: "MullvadRest",
+                tableName: "RESTClient",
                 value: "Invalid account.",
                 comment: ""
             )
@@ -93,7 +93,7 @@ struct ServerErrorResponse: LocalizedError, Decodable, Equatable {
         case Code.keyLimitReached.rawValue:
             return NSLocalizedString(
                 "KEY_LIMIT_REACHED_ERROR_RECOVERY_SUGGESTION",
-                tableName: "MullvadRest",
+                tableName: "RESTClient",
                 value: "Please visit the website to revoke a key before login is possible.",
                 comment: ""
             )

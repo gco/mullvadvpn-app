@@ -102,7 +102,6 @@ class Account {
         case exclusive
     }
 
-    private let rest = MullvadRest()
     private let dispatchQueue = DispatchQueue(label: "AccountQueue")
 
     var isLoggedIn: Bool {
@@ -115,7 +114,7 @@ class Account {
     }
 
     func loginWithNewAccount(completionHandler: @escaping (Result<AccountResponse, Error>) -> Void) {
-        _ = rest.createAccount()
+        _ = RESTClient.shared.createAccount()
             .mapError { error in
                 return Error.createAccount(error)
             }
@@ -139,7 +138,7 @@ class Account {
     /// Perform the login and save the account token along with expiry (if available) to the
     /// application preferences.
     func login(with accountToken: String, completionHandler: @escaping (Result<AccountResponse, Error>) -> Void) {
-        _ = rest.getAccountExpiry(token: accountToken)
+        _ = RESTClient.shared.getAccountExpiry(token: accountToken)
             .mapError { error in
                 return Error.verifyAccount(error)
             }
@@ -199,7 +198,7 @@ class Account {
     func updateAccountExpiry() {
         _ = Promise<String?>.deferred { self.token }
             .mapThen(defaultValue: nil) { token in
-                return self.rest.getAccountExpiry(token: token)
+                return RESTClient.shared.getAccountExpiry(token: token)
                     .onFailure { error in
                         self.logger.error(chainedError: error, message: "Failed to update account expiry")
                     }

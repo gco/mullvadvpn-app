@@ -1,5 +1,5 @@
 //
-//  MullvadRest.swift
+//  RESTClient.swift
 //  MullvadVPN
 //
 //  Created by pronebird on 10/07/2020.
@@ -66,8 +66,10 @@ enum HTTPHeader {
     static let ifNoneMatch = "If-None-Match"
 }
 
-class MullvadRest {
+class RESTClient {
     let session: URLSession
+
+    static let shared = RESTClient()
 
     private let sessionDelegate: SSLPinningURLSessionDelegate
 
@@ -82,7 +84,7 @@ class MullvadRest {
         }
     }
 
-    init() {
+    private init() {
         sessionDelegate = SSLPinningURLSessionDelegate(trustedRootCertificates: Self.trustedRootCertificates)
         session = URLSession(configuration: .ephemeral, delegate: sessionDelegate, delegateQueue: nil)
     }
@@ -249,13 +251,13 @@ class MullvadRest {
             .flatMap { httpResponse, data in
                 switch httpResponse.statusCode {
                 case HTTPStatus.ok:
-                    return MullvadRest.decodeSuccessResponse(CreateApplePaymentRawResponse.self, from: data)
+                    return RESTClient.decodeSuccessResponse(CreateApplePaymentRawResponse.self, from: data)
                         .map { (response) in
                             return .noTimeAdded(response.newExpiry)
                         }
 
                 case HTTPStatus.created:
-                    return MullvadRest.decodeSuccessResponse(CreateApplePaymentRawResponse.self, from: data)
+                    return RESTClient.decodeSuccessResponse(CreateApplePaymentRawResponse.self, from: data)
                         .map { (response) in
                             return .timeAdded(response.timeAdded, response.newExpiry)
                         }

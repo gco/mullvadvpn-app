@@ -13,7 +13,6 @@ class ProblemReportViewController: UIViewController, UITextFieldDelegate, Condit
     private var textViewKeyboardResponder: AutomaticKeyboardResponder?
     private var scrollViewKeyboardResponder: AutomaticKeyboardResponder?
 
-    private let mullvadRest = MullvadRest()
     private lazy var consolidatedLog: ConsolidatedApplicationLog = {
         let securityGroupIdentifier = ApplicationConfiguration.securityGroupIdentifier
 
@@ -594,7 +593,7 @@ class ProblemReportViewController: UIViewController, UITextFieldDelegate, Condit
 
         willSendProblemReport()
 
-        mullvadRest.sendProblemReport(request)
+        RESTClient.shared.sendProblemReport(request)
             .receive(on: .main)
             .observe { completion in
                 self.didSendProblemReport(viewModel: viewModel, result: completion.unwrappedValue!)
