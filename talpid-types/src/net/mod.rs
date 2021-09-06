@@ -7,6 +7,7 @@ use std::{
     str::FromStr,
 };
 
+pub mod obfuscation;
 pub mod openvpn;
 pub mod proxy;
 pub mod wireguard;

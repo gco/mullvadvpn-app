@@ -3,7 +3,7 @@ use std::{
     ffi::CString,
     net::{Ipv4Addr, Ipv6Addr},
 };
-use talpid_types::net::{wireguard, GenericTunnelOptions};
+use talpid_types::net::{obfuscation::ObfuscatorConfig, wireguard, GenericTunnelOptions};
 
 /// Config required to set up a single WireGuard tunnel
 pub struct Config {
@@ -23,6 +23,8 @@ pub struct Config {
     /// Enable IPv6 routing rules
     #[cfg(target_os = "linux")]
     pub enable_ipv6: bool,
+    /// Obfuscator config to be used for reaching the relay.
+    pub obfuscator_config: Option<ObfuscatorConfig>,
 }
 
 const DEFAULT_MTU: u16 = 1380;
@@ -57,6 +59,7 @@ impl Config {
             &params.connection,
             &params.options,
             &params.generic_options,
+            params.obfuscation.clone(),
         )
     }
 
@@ -67,6 +70,7 @@ impl Config {
         connection_config: &wireguard::ConnectionConfig,
         wg_options: &wireguard::TunnelOptions,
         generic_options: &GenericTunnelOptions,
+        obfuscator_config: Option<ObfuscatorConfig>,
     ) -> Result<Config, Error> {
         if peers.is_empty() {
             return Err(Error::NoPeersSuppliedError);
@@ -109,6 +113,7 @@ impl Config {
             fwmark: crate::linux::TUNNEL_FW_MARK,
             #[cfg(target_os = "linux")]
             enable_ipv6: generic_options.enable_ipv6,
+            obfuscator_config,
         })
     }
 
