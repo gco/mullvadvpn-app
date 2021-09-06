@@ -35,7 +35,7 @@ class ProductsRequestOperation: AsyncOperation, SKProductsRequestDelegate {
 
     override func cancel() {
         super.cancel()
-        
+
         DispatchQueue.main.async {
             self.request?.cancel()
             self.retryTimer?.cancel()
