@@ -140,13 +140,13 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
         paymentQueue.add(payment)
     }
 
-    func restorePurchases(for accountToken: String) -> Result<CreateApplePaymentResponse, AppStorePaymentManager.Error>.Promise {
+    func restorePurchases(for accountToken: String) -> Result<REST.CreateApplePaymentResponse, AppStorePaymentManager.Error>.Promise {
         return sendAppStoreReceipt(accountToken: accountToken, forceRefresh: true)
     }
 
     // MARK: - Private methods
 
-    private func sendAppStoreReceipt(accountToken: String, forceRefresh: Bool) -> Result<CreateApplePaymentResponse, Error>.Promise {
+    private func sendAppStoreReceipt(accountToken: String, forceRefresh: Bool) -> Result<REST.CreateApplePaymentResponse, Error>.Promise {
         return AppStoreReceipt.fetch(forceRefresh: forceRefresh)
             .mapError { error in
                 self.logger.error(chainedError: error, message: "Failed to fetch the AppStore receipt")

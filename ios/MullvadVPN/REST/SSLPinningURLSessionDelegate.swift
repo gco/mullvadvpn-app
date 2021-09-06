@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import Security
 import Logging
 
 class SSLPinningURLSessionDelegate: NSObject, URLSessionDelegate {

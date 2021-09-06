@@ -204,8 +204,8 @@ class AccountViewController: UIViewController, AppStorePaymentObserver, AccountO
     }
 
     private func showTimeAddedConfirmationAlert(
-        with response: CreateApplePaymentResponse,
-        context: CreateApplePaymentResponse.Context)
+        with response: REST.CreateApplePaymentResponse,
+        context: REST.CreateApplePaymentResponse.Context)
     {
         let alertController = UIAlertController(
             title: response.alertTitle(context: context),
@@ -370,7 +370,7 @@ class AccountViewController: UIViewController, AppStorePaymentObserver, AccountO
         }
     }
 
-    func appStorePaymentManager(_ manager: AppStorePaymentManager, transaction: SKPaymentTransaction, accountToken: String, didFinishWithResponse response: CreateApplePaymentResponse) {
+    func appStorePaymentManager(_ manager: AppStorePaymentManager, transaction: SKPaymentTransaction, accountToken: String, didFinishWithResponse response: REST.CreateApplePaymentResponse) {
         DispatchQueue.main.async {
             self.showTimeAddedConfirmationAlert(with: response, context: .purchase)
 
@@ -459,7 +459,7 @@ class AccountViewController: UIViewController, AppStorePaymentObserver, AccountO
 
 }
 
-private extension CreateApplePaymentResponse {
+private extension REST.CreateApplePaymentResponse {
 
     enum Context {
         case purchase

@@ -8,10 +8,7 @@
 
 import Foundation
 import Network
-import Security
 import WireGuardKit
-
-
 
 extension REST {
 
@@ -334,78 +331,79 @@ extension REST {
             return request
         }
     }
-}
 
-// MARK: - Response types
+    // MARK: - Response types
 
-struct AccountResponse: Decodable {
-    let token: String
-    let expires: Date
-}
+    struct AccountResponse: Decodable {
+        let token: String
+        let expires: Date
+    }
 
-enum HttpResourceCacheResponse<T: Decodable> {
-    case notModified
-    case newContent(_ etag: String?, _ value: T)
-}
+    enum HttpResourceCacheResponse<T: Decodable> {
+        case notModified
+        case newContent(_ etag: String?, _ value: T)
+    }
 
-struct WireguardAddressesResponse: Decodable {
-    let id: String
-    let pubkey: Data
-    let ipv4Address: IPAddressRange
-    let ipv6Address: IPAddressRange
-}
+    struct WireguardAddressesResponse: Decodable {
+        let id: String
+        let pubkey: Data
+        let ipv4Address: IPAddressRange
+        let ipv6Address: IPAddressRange
+    }
 
-fileprivate struct PushWireguardKeyRequest: Encodable {
-    let pubkey: Data
-}
+    fileprivate struct PushWireguardKeyRequest: Encodable {
+        let pubkey: Data
+    }
 
-fileprivate struct ReplaceWireguardKeyRequest: Encodable {
-    let old: Data
-    let new: Data
-}
+    fileprivate struct ReplaceWireguardKeyRequest: Encodable {
+        let old: Data
+        let new: Data
+    }
 
-fileprivate struct CreateApplePaymentRequest: Encodable {
-    let receiptString: Data
-}
+    fileprivate struct CreateApplePaymentRequest: Encodable {
+        let receiptString: Data
+    }
 
-enum CreateApplePaymentResponse {
-    case noTimeAdded(_ expiry: Date)
-    case timeAdded(_ timeAdded: Int, _ newExpiry: Date)
+    enum CreateApplePaymentResponse {
+        case noTimeAdded(_ expiry: Date)
+        case timeAdded(_ timeAdded: Int, _ newExpiry: Date)
 
-    var newExpiry: Date {
-        switch self {
-        case .noTimeAdded(let expiry), .timeAdded(_, let expiry):
-            return expiry
+        var newExpiry: Date {
+            switch self {
+            case .noTimeAdded(let expiry), .timeAdded(_, let expiry):
+                return expiry
+            }
+        }
+
+        var timeAdded: TimeInterval {
+            switch self {
+            case .noTimeAdded:
+                return 0
+            case .timeAdded(let timeAdded, _):
+                return TimeInterval(timeAdded)
+            }
+        }
+
+        /// Returns a formatted string for the `timeAdded` interval, i.e "30 days"
+        var formattedTimeAdded: String? {
+            let formatter = DateComponentsFormatter()
+            formatter.allowedUnits = [.day, .hour]
+            formatter.unitsStyle = .full
+
+            return formatter.string(from: self.timeAdded)
         }
     }
 
-    var timeAdded: TimeInterval {
-        switch self {
-        case .noTimeAdded:
-            return 0
-        case .timeAdded(let timeAdded, _):
-            return TimeInterval(timeAdded)
-        }
+    fileprivate struct CreateApplePaymentRawResponse: Decodable {
+        let timeAdded: Int
+        let newExpiry: Date
     }
 
-    /// Returns a formatted string for the `timeAdded` interval, i.e "30 days"
-    var formattedTimeAdded: String? {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.day, .hour]
-        formatter.unitsStyle = .full
-
-        return formatter.string(from: self.timeAdded)
+    struct ProblemReportRequest: Encodable {
+        let address: String
+        let message: String
+        let log: String
+        let metadata: [String: String]
     }
-}
 
-fileprivate struct CreateApplePaymentRawResponse: Decodable {
-    let timeAdded: Int
-    let newExpiry: Date
-}
-
-struct ProblemReportRequest: Encodable {
-    let address: String
-    let message: String
-    let log: String
-    let metadata: [String: String]
 }

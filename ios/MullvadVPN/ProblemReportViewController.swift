@@ -589,7 +589,7 @@ class ProblemReportViewController: UIViewController, UITextFieldDelegate, Condit
             output[entry.key.rawValue] = entry.value
         }
 
-        let request = ProblemReportRequest(address: viewModel.email, message: viewModel.message, log: log, metadata: metadata)
+        let request = REST.ProblemReportRequest(address: viewModel.email, message: viewModel.message, log: log, metadata: metadata)
 
         willSendProblemReport()
 

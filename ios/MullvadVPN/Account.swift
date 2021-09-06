@@ -113,7 +113,7 @@ class Account {
         UserDefaults.standard.set(true, forKey: UserDefaultsKeys.isAgreedToTermsOfService.rawValue)
     }
 
-    func loginWithNewAccount(completionHandler: @escaping (Result<AccountResponse, Error>) -> Void) {
+    func loginWithNewAccount(completionHandler: @escaping (Result<REST.AccountResponse, Error>) -> Void) {
         _ = REST.Client.shared.createAccount()
             .mapError { error in
                 return Error.createAccount(error)
@@ -137,7 +137,7 @@ class Account {
 
     /// Perform the login and save the account token along with expiry (if available) to the
     /// application preferences.
-    func login(with accountToken: String, completionHandler: @escaping (Result<AccountResponse, Error>) -> Void) {
+    func login(with accountToken: String, completionHandler: @escaping (Result<REST.AccountResponse, Error>) -> Void) {
         _ = REST.Client.shared.getAccountExpiry(token: accountToken)
             .mapError { error in
                 return Error.verifyAccount(error)
@@ -259,7 +259,7 @@ extension Account: AppStorePaymentObserver {
         // no-op
     }
 
-    func appStorePaymentManager(_ manager: AppStorePaymentManager, transaction: SKPaymentTransaction, accountToken: String, didFinishWithResponse response: CreateApplePaymentResponse) {
+    func appStorePaymentManager(_ manager: AppStorePaymentManager, transaction: SKPaymentTransaction, accountToken: String, didFinishWithResponse response: REST.CreateApplePaymentResponse) {
         _ = Promise.deferred { response }
             .schedule(on: .main)
             .then { response in

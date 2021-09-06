@@ -20,5 +20,5 @@ protocol AppStorePaymentObserver: AnyObject {
         _ manager: AppStorePaymentManager,
         transaction: SKPaymentTransaction,
         accountToken: String,
-        didFinishWithResponse response: CreateApplePaymentResponse)
+        didFinishWithResponse response: REST.CreateApplePaymentResponse)
 }

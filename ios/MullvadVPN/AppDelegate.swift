@@ -424,7 +424,7 @@ extension AppDelegate: RootContainerViewControllerDelegate {
 
 extension AppDelegate: LoginViewControllerDelegate {
 
-    func loginViewController(_ controller: LoginViewController, loginWithAccountToken accountToken: String, completion: @escaping (Result<AccountResponse, Account.Error>) -> Void) {
+    func loginViewController(_ controller: LoginViewController, loginWithAccountToken accountToken: String, completion: @escaping (Result<REST.AccountResponse, Account.Error>) -> Void) {
         self.rootContainer?.setEnableSettingsButton(false)
 
         Account.shared.login(with: accountToken) { (result) in
@@ -442,7 +442,7 @@ extension AppDelegate: LoginViewControllerDelegate {
         }
     }
 
-    func loginViewControllerLoginWithNewAccount(_ controller: LoginViewController, completion: @escaping (Result<AccountResponse, Account.Error>) -> Void) {
+    func loginViewControllerLoginWithNewAccount(_ controller: LoginViewController, completion: @escaping (Result<REST.AccountResponse, Account.Error>) -> Void) {
         self.rootContainer?.setEnableSettingsButton(false)
 
         Account.shared.loginWithNewAccount { (result) in

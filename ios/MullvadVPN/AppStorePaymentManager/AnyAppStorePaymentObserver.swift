@@ -32,7 +32,7 @@ class AnyAppStorePaymentObserver: AppStorePaymentObserver, WeakObserverBox, Equa
     func appStorePaymentManager(_ manager: AppStorePaymentManager,
                                 transaction: SKPaymentTransaction,
                                 accountToken: String,
-                                didFinishWithResponse response: CreateApplePaymentResponse)
+                                didFinishWithResponse response: REST.CreateApplePaymentResponse)
     {
         self.inner?.appStorePaymentManager(
             manager,
