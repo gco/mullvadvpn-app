@@ -57,6 +57,7 @@
 		5846227526E22A350035F7C2 /* AnyAppStorePaymentObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5846227426E22A350035F7C2 /* AnyAppStorePaymentObserver.swift */; };
 		5846227726E22A7C0035F7C2 /* AppStorePaymentManagerDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5846227626E22A7C0035F7C2 /* AppStorePaymentManagerDelegate.swift */; };
 		5846227A26E24F1F0035F7C2 /* ExclusivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 580EE20524B3222200F9D8A1 /* ExclusivityController.swift */; };
+		5846227C26E630330035F7C2 /* Operation+Completion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5846227B26E630320035F7C2 /* Operation+Completion.swift */; };
 		584789B8264D4A2A000E45FB /* old_le_root_cert.cer in Resources */ = {isa = PBXBuildFile; fileRef = 584789B4264D4A2A000E45FB /* old_le_root_cert.cer */; };
 		584789B9264D4A2A000E45FB /* old_le_root_cert.cer in Resources */ = {isa = PBXBuildFile; fileRef = 584789B4264D4A2A000E45FB /* old_le_root_cert.cer */; };
 		584789BE264D4A2A000E45FB /* new_le_root_cert.cer in Resources */ = {isa = PBXBuildFile; fileRef = 584789B7264D4A2A000E45FB /* new_le_root_cert.cer */; };
@@ -367,6 +368,7 @@
 		5846227226E22A160035F7C2 /* AppStorePaymentObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStorePaymentObserver.swift; sourceTree = "<group>"; };
 		5846227426E22A350035F7C2 /* AnyAppStorePaymentObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyAppStorePaymentObserver.swift; sourceTree = "<group>"; };
 		5846227626E22A7C0035F7C2 /* AppStorePaymentManagerDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStorePaymentManagerDelegate.swift; sourceTree = "<group>"; };
+		5846227B26E630320035F7C2 /* Operation+Completion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Operation+Completion.swift"; sourceTree = "<group>"; };
 		584789B4264D4A2A000E45FB /* old_le_root_cert.cer */ = {isa = PBXFileReference; lastKnownFileType = file; path = old_le_root_cert.cer; sourceTree = "<group>"; };
 		584789B7264D4A2A000E45FB /* new_le_root_cert.cer */ = {isa = PBXFileReference; lastKnownFileType = file; path = new_le_root_cert.cer; sourceTree = "<group>"; };
 		584789DF26529D72000E45FB /* SSLPinningURLSessionDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSLPinningURLSessionDelegate.swift; sourceTree = "<group>"; };
@@ -571,6 +573,7 @@
 				580EE20524B3222200F9D8A1 /* ExclusivityController.swift */,
 				5846226426E0D9630035F7C2 /* ProductsRequestOperation.swift */,
 				5846226926E0E6FA0035F7C2 /* ReceiptRefreshOperation.swift */,
+				5846227B26E630320035F7C2 /* Operation+Completion.swift */,
 			);
 			path = Operations;
 			sourceTree = "<group>";
@@ -1242,6 +1245,7 @@
 				582AE3102440A6CA00E6733A /* AccountTokenInput.swift in Sources */,
 				58FAEDF7245088E100CB0F5B /* Keychain.swift in Sources */,
 				5846227726E22A7C0035F7C2 /* AppStorePaymentManagerDelegate.swift in Sources */,
+				5846227C26E630330035F7C2 /* Operation+Completion.swift in Sources */,
 				5871FB8325498CA20051A0A4 /* Swizzle.swift in Sources */,
 				58EF581125D69DB400AEBA94 /* StatusImageView.swift in Sources */,
 				58907D9524D17B4E00CFC3F5 /* DisconnectSplitButton.swift in Sources */,
