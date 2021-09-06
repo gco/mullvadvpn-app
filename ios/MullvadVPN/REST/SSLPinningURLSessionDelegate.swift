@@ -68,6 +68,4 @@ class SSLPinningURLSessionDelegate: NSObject, URLSessionDelegate {
 
         return "\(message) (code: \(code))"
     }
-
-
 }

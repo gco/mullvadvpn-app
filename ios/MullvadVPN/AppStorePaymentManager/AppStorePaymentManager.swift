@@ -21,7 +21,7 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
         case noAccountSet
         case storePayment(Swift.Error)
         case readReceipt(AppStoreReceipt.Error)
-        case sendReceipt(RestError)
+        case sendReceipt(REST.Error)
 
         var errorDescription: String? {
             switch self {
@@ -154,7 +154,7 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
                 return .readReceipt(error)
             }
             .mapThen { receiptData in
-                return RESTClient.shared.createApplePayment(token: accountToken, receiptString: receiptData)
+                return REST.Client.shared.createApplePayment(token: accountToken, receiptString: receiptData)
                     .mapError { error in
                         self.logger.error(chainedError: error, message: "Failed to upload the AppStore receipt")
 

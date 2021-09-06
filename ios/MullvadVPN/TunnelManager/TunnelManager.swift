@@ -64,16 +64,16 @@ class TunnelManager {
         case obtainPersistentKeychainReference(TunnelSettingsManager.Error)
 
         /// A failure to push the public WireGuard key
-        case pushWireguardKey(RestError)
+        case pushWireguardKey(REST.Error)
 
         /// A failure to replace the public WireGuard key
-        case replaceWireguardKey(RestError)
+        case replaceWireguardKey(REST.Error)
 
         /// A failure to remove the public WireGuard key
-        case removeWireguardKey(RestError)
+        case removeWireguardKey(REST.Error)
 
         /// A failure to verify the public WireGuard key
-        case verifyWireguardKey(RestError)
+        case verifyWireguardKey(REST.Error)
 
         var errorDescription: String? {
             switch self {
@@ -458,7 +458,7 @@ class TunnelManager {
                 return
             }
 
-            RESTClient.shared.getWireguardKey(token: tunnelInfo.token, publicKey: tunnelInfo.tunnelSettings.interface.publicKey)
+            REST.Client.shared.getWireguardKey(token: tunnelInfo.token, publicKey: tunnelInfo.tunnelSettings.interface.publicKey)
                 .map { _ in
                     return true
                 }
@@ -753,7 +753,7 @@ class TunnelManager {
     }
 
     private func pushWireguardKeyAndUpdateSettings(accountToken: String, publicKey: PublicKey) -> Result<TunnelSettings, Error>.Promise {
-        return RESTClient.shared.pushWireguardKey(token: accountToken, publicKey: publicKey)
+        return REST.Client.shared.pushWireguardKey(token: accountToken, publicKey: publicKey)
             .mapError { error in
                 return .pushWireguardKey(error)
             }
@@ -768,7 +768,7 @@ class TunnelManager {
     }
 
     private func removeWireguardKeyFromServer(accountToken: String, publicKey: PublicKey) -> Result<Bool, Error>.Promise {
-        return RESTClient.shared.deleteWireguardKey(token: accountToken, publicKey: publicKey)
+        return REST.Client.shared.deleteWireguardKey(token: accountToken, publicKey: publicKey)
             .map { _ in
                 return true
             }
@@ -787,7 +787,7 @@ class TunnelManager {
         newPrivateKey: PrivateKeyWithMetadata
     ) -> Result<TunnelSettings, Error>.Promise
     {
-        return RESTClient.shared.replaceWireguardKey(token: accountToken, oldPublicKey: oldPublicKey.publicKey, newPublicKey: newPrivateKey.publicKey)
+        return REST.Client.shared.replaceWireguardKey(token: accountToken, oldPublicKey: oldPublicKey.publicKey, newPublicKey: newPrivateKey.publicKey)
             .mapError { error in
                 return .replaceWireguardKey(error)
             }

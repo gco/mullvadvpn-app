@@ -13,7 +13,7 @@ protocol DisplayChainedError {
     var errorChainDescription: String? { get }
 }
 
-extension RestError: DisplayChainedError {
+extension REST.Error: DisplayChainedError {
     var errorChainDescription: String? {
         switch self {
         case .network(let urlError):

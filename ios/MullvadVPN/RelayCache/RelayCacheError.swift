@@ -16,7 +16,7 @@ enum RelayCacheError: ChainedError {
     case writeCache(Error)
     case encodeCache(Error)
     case decodeCache(Error)
-    case rest(RestError)
+    case rest(REST.Error)
 
     var errorDescription: String? {
         switch self {

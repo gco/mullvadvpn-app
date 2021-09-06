@@ -168,7 +168,7 @@ class RelayCacheTracker {
     // MARK: - Private instance methods
 
     private func downloadRelays(previouslyCachedRelays: CachedRelays?) -> Result<RelayFetchResult, RelayCacheError>.Promise {
-        return RESTClient.shared.getRelays(etag: previouslyCachedRelays?.etag)
+        return REST.Client.shared.getRelays(etag: previouslyCachedRelays?.etag)
             .receive(on: stateQueue)
             .mapError { error in
                 self.logger.error(chainedError: error, message: "Failed to download relays")

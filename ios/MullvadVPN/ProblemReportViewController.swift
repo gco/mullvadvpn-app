@@ -564,7 +564,7 @@ class ProblemReportViewController: UIViewController, UITextFieldDelegate, Condit
         navigationItem.setHidesBackButton(true, animated: true)
     }
 
-    private func didSendProblemReport(viewModel: ViewModel, result: Result<(), RestError>) {
+    private func didSendProblemReport(viewModel: ViewModel, result: Result<(), REST.Error>) {
         switch result {
         case .success:
             submissionOverlayView.state = .sent(viewModel.email)
@@ -593,7 +593,7 @@ class ProblemReportViewController: UIViewController, UITextFieldDelegate, Condit
 
         willSendProblemReport()
 
-        RESTClient.shared.sendProblemReport(request)
+        REST.Client.shared.sendProblemReport(request)
             .receive(on: .main)
             .observe { completion in
                 self.didSendProblemReport(viewModel: viewModel, result: completion.unwrappedValue!)

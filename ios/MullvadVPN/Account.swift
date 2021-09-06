@@ -54,10 +54,10 @@ class Account {
 
     enum Error: ChainedError {
         /// A failure to create the new account token
-        case createAccount(RestError)
+        case createAccount(REST.Error)
 
         /// A failure to verify the account token
-        case verifyAccount(RestError)
+        case verifyAccount(REST.Error)
 
         /// A failure to configure a tunnel
         case tunnelConfiguration(TunnelManager.Error)
@@ -114,7 +114,7 @@ class Account {
     }
 
     func loginWithNewAccount(completionHandler: @escaping (Result<AccountResponse, Error>) -> Void) {
-        _ = RESTClient.shared.createAccount()
+        _ = REST.Client.shared.createAccount()
             .mapError { error in
                 return Error.createAccount(error)
             }
@@ -138,7 +138,7 @@ class Account {
     /// Perform the login and save the account token along with expiry (if available) to the
     /// application preferences.
     func login(with accountToken: String, completionHandler: @escaping (Result<AccountResponse, Error>) -> Void) {
-        _ = RESTClient.shared.getAccountExpiry(token: accountToken)
+        _ = REST.Client.shared.getAccountExpiry(token: accountToken)
             .mapError { error in
                 return Error.verifyAccount(error)
             }
@@ -198,7 +198,7 @@ class Account {
     func updateAccountExpiry() {
         _ = Promise<String?>.deferred { self.token }
             .mapThen(defaultValue: nil) { token in
-                return RESTClient.shared.getAccountExpiry(token: token)
+                return REST.Client.shared.getAccountExpiry(token: token)
                     .onFailure { error in
                         self.logger.error(chainedError: error, message: "Failed to update account expiry")
                     }
