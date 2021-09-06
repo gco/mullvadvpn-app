@@ -21,6 +21,11 @@ class ExclusivityController {
             categories.forEach { category in
                 _addOperation(operation, category: category)
             }
+
+            // Automatically unregister operation on completion
+            operation.addCompletionBlock { [weak self] in
+                self?.removeOperation(operation, categories: categories)
+            }
         }
     }
 
@@ -52,3 +57,4 @@ class ExclusivityController {
         operations[category] = operationsWithThisCategory
     }
 }
+
