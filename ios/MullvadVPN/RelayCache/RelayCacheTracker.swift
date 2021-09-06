@@ -39,9 +39,6 @@ enum RelayFetchResult {
     /// Request to update relays was throttled.
     case throttled
 
-    /// Failure to download relays.
-    case failure(Error)
-
     /// Refreshed relays but the same content was found on remote.
     case sameContent
 
@@ -50,7 +47,7 @@ enum RelayFetchResult {
 }
 
 class RelayCacheTracker {
-    private let logger = Logger(label: "RelayCache")
+    private let logger = Logger(label: "RelayCacheTracker")
 
     /// Mullvad REST client
     private let rest = MullvadRest()
@@ -62,16 +59,16 @@ class RelayCacheTracker {
     private let prebundledRelaysFileURL: URL
 
     /// A dispatch queue used for thread synchronization
-    private let dispatchQueue = DispatchQueue(label: "RelayCacheTracker")
+    private let stateQueue = DispatchQueue(label: "RelayCacheTracker")
+
+    /// A dispatch queue used for serializing downloads
+    private let downloadQueue = DispatchQueue(label: "RelayCacheTrackerDownloadQueue")
 
     /// A timer source used for periodic updates
     private var timerSource: DispatchSourceTimer?
 
     /// A flag that indicates whether periodic updates are running
     private var isPeriodicUpdatesEnabled = false
-
-    /// A download task used for relay RPC request
-    private var downloadCancellationToken: PromiseCancellationToken?
 
     /// Observers
     private let observerList = ObserverList<AnyRelayCacheObserver>()
@@ -93,7 +90,7 @@ class RelayCacheTracker {
     }
 
     func startPeriodicUpdates() {
-        dispatchQueue.async {
+        stateQueue.async {
             guard !self.isPeriodicUpdatesEnabled else { return }
 
             self.isPeriodicUpdatesEnabled = true
@@ -101,8 +98,7 @@ class RelayCacheTracker {
             switch RelayCacheIO.read(cacheFileURL: self.cacheFileURL) {
             case .success(let cachedRelayList):
                 if let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelayList.updatedAt) {
-                    let startTime = Self.makeWalltime(fromDate: nextUpdate)
-                    self.scheduleRepeatingTimer(startTime: startTime)
+                    self.scheduleRepeatingTimer(startTime: .now() + nextUpdate.timeIntervalSinceNow)
                 }
 
             case .failure(let readError):
@@ -116,41 +112,51 @@ class RelayCacheTracker {
     }
 
     func stopPeriodicUpdates() {
-        dispatchQueue.async {
+        stateQueue.async {
             guard self.isPeriodicUpdatesEnabled else { return }
 
             self.isPeriodicUpdatesEnabled = false
 
             self.timerSource?.cancel()
             self.timerSource = nil
-
-            self.downloadCancellationToken = nil
         }
     }
 
-    func updateRelays(completionHandler: ((RelayFetchResult) -> Void)?) {
-        dispatchQueue.async {
-            self._updateRelays(completionHandler: completionHandler)
+    func updateRelays() -> Result<RelayFetchResult, RelayCacheError>.Promise {
+        return Promise.deferred {
+            return RelayCacheIO.read(cacheFileURL: self.cacheFileURL)
         }
-    }
+        .schedule(on: stateQueue)
+        .then { result in
+            switch result {
+            case .success(let cachedRelays):
+                let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelays.updatedAt)
 
-    /// Read the relay cache from disk.
-    func read(completionHandler: @escaping (Result<CachedRelays, RelayCacheError>) -> Void) {
-        dispatchQueue.async {
-            let result = RelayCacheIO.readWithFallback(
-                cacheFileURL: self.cacheFileURL,
-                preBundledRelaysFileURL: self.prebundledRelaysFileURL
-            )
-            completionHandler(result)
+                if let nextUpdate = nextUpdate, nextUpdate <= Date() {
+                    return self.downloadRelays(previouslyCachedRelays: cachedRelays)
+                } else {
+                    return .success(.throttled)
+                }
+
+            case .failure(let readError):
+                self.logger.error(chainedError: readError, message: "Failed to read the relay cache to determine if it needs to be updated")
+
+                if Self.shouldDownloadRelaysOnReadFailure(readError) {
+                    return self.downloadRelays(previouslyCachedRelays: nil)
+                } else {
+                    return .failure(readError)
+                }
+            }
         }
     }
 
     func read() -> Result<CachedRelays, RelayCacheError>.Promise {
-        return Result<CachedRelays, RelayCacheError>.Promise { resolver in
-            return self.read { result in
-                resolver.resolve(value: result)
-            }
-        }
+        return Promise.deferred {
+            return RelayCacheIO.readWithFallback(
+                cacheFileURL: self.cacheFileURL,
+                preBundledRelaysFileURL: self.prebundledRelaysFileURL
+            )
+        }.schedule(on: stateQueue)
     }
 
     // MARK: - Observation
@@ -165,41 +171,12 @@ class RelayCacheTracker {
 
     // MARK: - Private instance methods
 
-    private func _updateRelays() -> Result<RelayFetchResult, RelayCacheError>.Promise {
-        RelayCacheIO.read(cacheFileURL: self.cacheFileURL)
-            .asPromise()
-            .then { result in
-                switch result {
-                case .success(let cachedRelays):
-                    let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelays.updatedAt)
-
-                    if let nextUpdate = nextUpdate, nextUpdate <= Date() {
-                        return self.downloadRelays(previouslyCachedRelays: cachedRelays)
-                    } else {
-                        return .success(.throttled)
-                    }
-
-                case .failure(let readError):
-                    self.logger.error(chainedError: readError, message: "Failed to read the relay cache to determine if it needs to be updated")
-
-                    if Self.shouldDownloadRelaysOnReadFailure(readError) {
-                        return self.downloadRelays(previouslyCachedRelays: nil)
-                    } else {
-                        return .failure(readError)
-                    }
-                }
-            }
-    }
-
     private func downloadRelays(previouslyCachedRelays: CachedRelays?) -> Result<RelayFetchResult, RelayCacheError>.Promise {
         return rest.getRelays(etag: previouslyCachedRelays?.etag)
-            .storeCancellationToken(in: &downloadCancellationToken)
+            .receive(on: stateQueue)
             .mapError { error in
-                return RelayCacheError.rest(error)
-            }
-            .receive(on: dispatchQueue)
-            .onFailure { error in
                 self.logger.error(chainedError: error, message: "Failed to download relays")
+                return RelayCacheError.rest(error)
             }
             .mapThen { result in
                 switch result {
@@ -239,15 +216,16 @@ class RelayCacheTracker {
                         }
                 }
             }
+            .block(on: downloadQueue)
     }
 
     private func scheduleRepeatingTimer(startTime: DispatchWallTime) {
-        let timerSource = DispatchSource.makeTimerSource(queue: dispatchQueue)
+        let timerSource = DispatchSource.makeTimerSource(queue: stateQueue)
         timerSource.setEventHandler { [weak self] in
             guard let self = self else { return }
 
             if self.isPeriodicUpdatesEnabled {
-                self._updateRelays(completionHandler: nil)
+                self.updateRelays().observe { _ in }
             }
         }
 
@@ -258,15 +236,6 @@ class RelayCacheTracker {
     }
 
     // MARK: - Private class methods
-
-    private class func makeWalltime(fromDate date: Date) -> DispatchWallTime {
-        let (seconds, frac) = modf(date.timeIntervalSince1970)
-
-        let nsec: Double = frac * Double(NSEC_PER_SEC)
-        let walltime = timespec(tv_sec: Int(seconds), tv_nsec: Int(nsec))
-
-        return DispatchWallTime(timespec: walltime)
-    }
 
     private class func nextUpdateDate(lastUpdatedAt: Date) -> Date? {
         return Calendar.current.date(

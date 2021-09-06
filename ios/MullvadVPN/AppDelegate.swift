@@ -70,18 +70,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         RelayCacheTracker.shared.addObserver(self)
 
         // Load initial relays
-        self.logger?.debug("Load relays")
-        RelayCacheTracker.shared.read { (result) in
-            DispatchQueue.main.async {
+        _ = RelayCacheTracker.shared.read()
+            .receive(on: .main)
+            .observe { completion in
+                guard let result = completion.unwrappedValue else { return }
+
                 switch result {
                 case .success(let cachedRelays):
                     self.cachedRelays = cachedRelays
-                    self.logger?.debug("Loaded relays")
 
                 case .failure(let error):
                     self.logger?.error(chainedError: error, message: "Failed to load initial relays")
                 }
-            }
         }
 
         // Load tunnels
@@ -135,9 +135,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
         logger?.info("Begin background refresh")
 
-        RelayCacheTracker.shared.updateRelays { relayResult in
-            completionHandler(relayResult.backgroundFetchResult)
-        }
+        RelayCacheTracker.shared.updateRelays()
+            .observe { completion in
+                let backgroundFetchResult: UIBackgroundFetchResult
+                let updateRelaysResult = completion.unwrappedValue!
+
+                switch updateRelaysResult {
+                case .success(let fetchResult):
+                    switch fetchResult {
+                    case .throttled, .sameContent:
+                        backgroundFetchResult = .noData
+                    case .newContent:
+                        backgroundFetchResult = .newData
+                    }
+                case .failure(let error):
+                    self.logger?.error(chainedError: error, message: "Failed to update relays from background refresh")
+                    backgroundFetchResult = .failed
+                }
+
+                completionHandler(backgroundFetchResult)
+            }
     }
 
     // MARK: - Private
@@ -696,46 +713,4 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         }
     }
 
-}
-
-// MARK: -
-
-extension RelayFetchResult {
-    var backgroundFetchResult: UIBackgroundFetchResult {
-        switch self {
-        case .newContent:
-            return .newData
-
-        case .sameContent, .throttled:
-            return .noData
-
-        case .failure:
-            return .failed
-        }
-    }
-}
-
-extension UIBackgroundFetchResult {
-    var description: String {
-        switch self {
-        case .newData:
-            return "new data"
-        case .noData:
-            return "no data"
-        case .failed:
-            return "failure"
-        @unknown default:
-            return "unknown (\(rawValue))"
-        }
-    }
-
-    func combine(_ other: UIBackgroundFetchResult) -> UIBackgroundFetchResult {
-        if self == .failed || other == .failed {
-            return .failed
-        } else if self == .newData || other == .newData {
-            return .newData
-        } else {
-            return self
-        }
-    }
 }
