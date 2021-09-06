@@ -205,7 +205,7 @@ class WireguardKeysViewController: UIViewController, TunnelObserver {
     private func verifyKey() {
         self.updateViewState(.verifyingKey)
 
-        _ = TunnelManager.shared.verifyPublicKey()
+        TunnelManager.shared.verifyPublicKey()
             .receive(on: .main)
             .onSuccess { [weak self] isValid in
                 self?.updateViewState(.verifiedKey(isValid))
@@ -225,12 +225,13 @@ class WireguardKeysViewController: UIViewController, TunnelObserver {
                 self.alertPresenter.enqueue(alertController, presentingController: self)
                 self.updateViewState(.default)
             }
+            .observe { _ in }
     }
 
     private func regeneratePrivateKey() {
         self.updateViewState(.regeneratingKey)
 
-        _ = TunnelManager.shared.regeneratePrivateKey()
+        TunnelManager.shared.regeneratePrivateKey()
             .receive(on: .main)
             .onSuccess { _ in
                 self.updateViewState(.regeneratedKey(true))
@@ -251,6 +252,7 @@ class WireguardKeysViewController: UIViewController, TunnelObserver {
 
                 self.updateViewState(.regeneratedKey(false))
             }
+            .observe { _ in }
     }
 
     private func setPublicKeyTitle(string: String, animated: Bool) {
