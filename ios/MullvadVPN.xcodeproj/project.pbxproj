@@ -36,6 +36,7 @@
 		5820675926E652BE00655B05 /* RESTCoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585DA88926B027A300B8C587 /* RESTCoding.swift */; };
 		5820675B26E6576800655B05 /* RelayCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675A26E6576800655B05 /* RelayCache.swift */; };
 		5820675C26E6576800655B05 /* RelayCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675A26E6576800655B05 /* RelayCache.swift */; };
+		5820675E26E6839900655B05 /* PresentAlertOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675D26E6839900655B05 /* PresentAlertOperation.swift */; };
 		5823FA5126CA690600283BF8 /* OSLogHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA4F26CA690600283BF8 /* OSLogHandler.swift */; };
 		5823FA5426CE49F700283BF8 /* TunnelObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA5326CE49F600283BF8 /* TunnelObserver.swift */; };
 		5823FA5626CE4A2B00283BF8 /* AnyTunnelObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA5526CE4A2B00283BF8 /* AnyTunnelObserver.swift */; };
@@ -348,6 +349,7 @@
 		5820674D26E6510200655B05 /* REST.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = REST.swift; sourceTree = "<group>"; };
 		5820674F26E6514100655B05 /* HTTP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTP.swift; sourceTree = "<group>"; };
 		5820675A26E6576800655B05 /* RelayCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayCache.swift; sourceTree = "<group>"; };
+		5820675D26E6839900655B05 /* PresentAlertOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresentAlertOperation.swift; sourceTree = "<group>"; };
 		5823FA4F26CA690600283BF8 /* OSLogHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OSLogHandler.swift; sourceTree = "<group>"; };
 		5823FA5326CE49F600283BF8 /* TunnelObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelObserver.swift; sourceTree = "<group>"; };
 		5823FA5526CE4A2B00283BF8 /* AnyTunnelObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyTunnelObserver.swift; sourceTree = "<group>"; };
@@ -582,6 +584,7 @@
 				5846226426E0D9630035F7C2 /* ProductsRequestOperation.swift */,
 				5846226926E0E6FA0035F7C2 /* ReceiptRefreshOperation.swift */,
 				5846227B26E630320035F7C2 /* Operation+Completion.swift */,
+				5820675D26E6839900655B05 /* PresentAlertOperation.swift */,
 			);
 			path = Operations;
 			sourceTree = "<group>";
@@ -1314,6 +1317,7 @@
 				58B93A1326C3F13600A55733 /* TunnelState.swift in Sources */,
 				58FEEB46260A028D00A621A8 /* GeoJSON.swift in Sources */,
 				5815039724D6ECAE00C9C50E /* CustomFormatLogHandler.swift in Sources */,
+				5820675E26E6839900655B05 /* PresentAlertOperation.swift in Sources */,
 				5815039D24D6ECE600C9C50E /* TextFileOutputStream.swift in Sources */,
 				581CBCEE229826FD00727D7F /* StaticTableViewDataSource.swift in Sources */,
 				58CE5E64224146200008646E /* AppDelegate.swift in Sources */,

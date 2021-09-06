@@ -9,9 +9,9 @@
 import Foundation
 import UIKit
 
-private let kUIAlertControllerDidDismissNotification = Notification.Name("UIAlertControllerDidDismiss")
-
 class AlertPresenter {
+    static let alertControllerDidDismissNotification = Notification.Name("UIAlertControllerDidDismiss")
+
     private let operationQueue: OperationQueue = {
         let operationQueue = OperationQueue()
         operationQueue.name = "AlertPresenterQueue"
@@ -42,50 +42,13 @@ class AlertPresenter {
 
 }
 
-
 fileprivate extension UIAlertController {
     @objc dynamic func alertPresenter_viewDidDisappear(_ animated: Bool) {
         // Call super implementation
         alertPresenter_viewDidDisappear(animated)
 
         if presentingViewController == nil {
-            NotificationCenter.default.post(name: kUIAlertControllerDidDismissNotification, object: self)
-        }
-    }
-}
-
-
-private class PresentAlertOperation: AsyncOperation {
-    private let alertController: UIAlertController
-    private let presentingController: UIViewController
-    private var dismissalObserver: NSObjectProtocol?
-    private let presentCompletion: (() -> Void)?
-
-    init(alertController: UIAlertController, presentingController: UIViewController, presentCompletion: (() -> Void)? = nil) {
-        self.alertController = alertController
-        self.presentingController = presentingController
-        self.presentCompletion = presentCompletion
-
-        super.init()
-    }
-
-    deinit {
-        if let dismissalObserver = dismissalObserver {
-            NotificationCenter.default.removeObserver(dismissalObserver)
-        }
-    }
-
-    override func main() {
-        DispatchQueue.main.async {
-            self.dismissalObserver = NotificationCenter.default.addObserver(
-                forName: kUIAlertControllerDidDismissNotification,
-                object: self.alertController,
-                queue: nil,
-                using: { [weak self] (note) in
-                    self?.finish()
-            })
-
-            self.presentingController.present(self.alertController, animated: true, completion: self.presentCompletion)
+            NotificationCenter.default.post(name: AlertPresenter.alertControllerDidDismissNotification, object: self)
         }
     }
 }
