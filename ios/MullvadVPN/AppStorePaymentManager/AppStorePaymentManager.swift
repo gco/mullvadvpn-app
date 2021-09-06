@@ -12,6 +12,11 @@ import Logging
 
 class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
 
+    private enum OperationCategory {
+        static let sendAppStoreReceipt = "AppStorePaymentManager.sendAppStoreReceipt"
+        static let productsRequest = "AppStorePaymentManager.productsRequest"
+    }
+
     enum Error: ChainedError {
         case noAccountSet
         case storePayment(Swift.Error)
@@ -126,6 +131,7 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
             let operation = ProductsRequestOperation(productIdentifiers: productIdentifiers) { result in
                 resolver.resolve(value: result)
             }
+            ExclusivityController.shared.addOperation(operation, categories: [OperationCategory.productsRequest])
             self.operationQueue.addOperation(operation)
         }
     }
@@ -159,6 +165,7 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
                         self.logger.info("AppStore receipt was processed. Time added: \(response.timeAdded), New expiry: \(response.newExpiry)")
                     }
             }
+            .run(on: operationQueue, categories: [OperationCategory.sendAppStoreReceipt])
     }
 
     private func handleTransaction(_ transaction: SKPaymentTransaction) {
