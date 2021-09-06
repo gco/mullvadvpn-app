@@ -51,7 +51,7 @@ extension Promise where Value: AnyResult {
         }
     }
 
-    /// Perform actiion on success.
+    /// Perform action on success.
     func onSuccess(_ onResolve: @escaping (Success) -> Void) -> Self {
         return observe { completion in
             if case .success(let value) = completion.unwrappedValue?.asConcreteType() {
