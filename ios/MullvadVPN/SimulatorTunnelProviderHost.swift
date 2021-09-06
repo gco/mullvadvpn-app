@@ -81,7 +81,7 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
     }
 
     private func pickRelay() -> RelaySelectorResult? {
-        guard let result = RelayCacheTracker.shared.read().await().unwrappedValue else { return nil }
+        guard let result = RelayCache.Tracker.shared.read().await().unwrappedValue else { return nil }
 
         switch result {
         case .success(let cachedRelays):

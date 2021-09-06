@@ -13,244 +13,247 @@ import Logging
 private let kUpdateIntervalSeconds = 3600
 
 protocol RelayCacheObserver: AnyObject {
-    func relayCache(_ relayCache: RelayCacheTracker, didUpdateCachedRelays cachedRelays: CachedRelays)
+    func relayCache(_ relayCache: RelayCache.Tracker, didUpdateCachedRelays cachedRelays: RelayCache.CachedRelays)
 }
 
-private class AnyRelayCacheObserver: WeakObserverBox, RelayCacheObserver {
+extension RelayCache {
 
-    typealias Wrapped = RelayCacheObserver
+    private class AnyRelayCacheObserver: WeakObserverBox, RelayCacheObserver {
+        typealias Wrapped = RelayCacheObserver
 
-    private(set) weak var inner: RelayCacheObserver?
+        private(set) weak var inner: RelayCacheObserver?
 
-    init<T: RelayCacheObserver>(_ inner: T) {
-        self.inner = inner
-    }
+        init<T: RelayCacheObserver>(_ inner: T) {
+            self.inner = inner
+        }
 
-    func relayCache(_ relayCache: RelayCacheTracker, didUpdateCachedRelays cachedRelays: CachedRelays) {
-        inner?.relayCache(relayCache, didUpdateCachedRelays: cachedRelays)
-    }
+        func relayCache(_ relayCache: RelayCache.Tracker, didUpdateCachedRelays cachedRelays: CachedRelays) {
+            inner?.relayCache(relayCache, didUpdateCachedRelays: cachedRelays)
+        }
 
-    static func == (lhs: AnyRelayCacheObserver, rhs: AnyRelayCacheObserver) -> Bool {
-        return lhs.inner === rhs.inner
-    }
-}
-
-enum RelayFetchResult {
-    /// Request to update relays was throttled.
-    case throttled
-
-    /// Refreshed relays but the same content was found on remote.
-    case sameContent
-
-    /// Refreshed relays with new content.
-    case newContent
-}
-
-class RelayCacheTracker {
-    private let logger = Logger(label: "RelayCacheTracker")
-    /// The cache location used by the class instance
-    private let cacheFileURL: URL
-
-    /// The location of prebundled `relays.json`
-    private let prebundledRelaysFileURL: URL
-
-    /// A dispatch queue used for thread synchronization
-    private let stateQueue = DispatchQueue(label: "RelayCacheTracker")
-
-    /// A dispatch queue used for serializing downloads
-    private let downloadQueue = DispatchQueue(label: "RelayCacheTrackerDownloadQueue")
-
-    /// A timer source used for periodic updates
-    private var timerSource: DispatchSourceTimer?
-
-    /// A flag that indicates whether periodic updates are running
-    private var isPeriodicUpdatesEnabled = false
-
-    /// Observers
-    private let observerList = ObserverList<AnyRelayCacheObserver>()
-
-    /// A shared instance of `RelayCache`
-    static let shared: RelayCacheTracker = {
-        let cacheFileURL = RelayCacheIO.defaultCacheFileURL(forSecurityApplicationGroupIdentifier: ApplicationConfiguration.securityGroupIdentifier)!
-        let prebundledRelaysFileURL = RelayCacheIO.preBundledRelaysFileURL!
-
-        return RelayCacheTracker(
-            cacheFileURL: cacheFileURL,
-            prebundledRelaysFileURL: prebundledRelaysFileURL
-        )
-    }()
-
-    private init(cacheFileURL: URL, prebundledRelaysFileURL: URL) {
-        self.cacheFileURL = cacheFileURL
-        self.prebundledRelaysFileURL = prebundledRelaysFileURL
-    }
-
-    func startPeriodicUpdates() {
-        stateQueue.async {
-            guard !self.isPeriodicUpdatesEnabled else { return }
-
-            self.isPeriodicUpdatesEnabled = true
-
-            switch RelayCacheIO.read(cacheFileURL: self.cacheFileURL) {
-            case .success(let cachedRelayList):
-                if let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelayList.updatedAt) {
-                    self.scheduleRepeatingTimer(startTime: .now() + nextUpdate.timeIntervalSinceNow)
-                }
-
-            case .failure(let readError):
-                self.logger.error(chainedError: readError, message: "Failed to read the relay cache")
-
-                if Self.shouldDownloadRelaysOnReadFailure(readError) {
-                    self.scheduleRepeatingTimer(startTime: .now())
-                }
-            }
+        static func == (lhs: AnyRelayCacheObserver, rhs: AnyRelayCacheObserver) -> Bool {
+            return lhs.inner === rhs.inner
         }
     }
 
-    func stopPeriodicUpdates() {
-        stateQueue.async {
-            guard self.isPeriodicUpdatesEnabled else { return }
+    enum FetchResult {
+        /// Request to update relays was throttled.
+        case throttled
 
-            self.isPeriodicUpdatesEnabled = false
+        /// Refreshed relays but the same content was found on remote.
+        case sameContent
 
-            self.timerSource?.cancel()
-            self.timerSource = nil
-        }
+        /// Refreshed relays with new content.
+        case newContent
     }
 
-    func updateRelays() -> Result<RelayFetchResult, RelayCacheError>.Promise {
-        return Promise.deferred {
-            return RelayCacheIO.read(cacheFileURL: self.cacheFileURL)
-        }
-        .schedule(on: stateQueue)
-        .then { result in
-            switch result {
-            case .success(let cachedRelays):
-                let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelays.updatedAt)
+    class Tracker {
+        private let logger = Logger(label: "RelayCacheTracker")
+        /// The cache location used by the class instance
+        private let cacheFileURL: URL
 
-                if let nextUpdate = nextUpdate, nextUpdate <= Date() {
-                    return self.downloadRelays(previouslyCachedRelays: cachedRelays)
-                } else {
-                    return .success(.throttled)
-                }
+        /// The location of prebundled `relays.json`
+        private let prebundledRelaysFileURL: URL
 
-            case .failure(let readError):
-                self.logger.error(chainedError: readError, message: "Failed to read the relay cache to determine if it needs to be updated")
+        /// A dispatch queue used for thread synchronization
+        private let stateQueue = DispatchQueue(label: "RelayCacheTracker")
 
-                if Self.shouldDownloadRelaysOnReadFailure(readError) {
-                    return self.downloadRelays(previouslyCachedRelays: nil)
-                } else {
-                    return .failure(readError)
-                }
-            }
-        }
-    }
+        /// A dispatch queue used for serializing downloads
+        private let downloadQueue = DispatchQueue(label: "RelayCacheTrackerDownloadQueue")
 
-    func read() -> Result<CachedRelays, RelayCacheError>.Promise {
-        return Promise.deferred {
-            return RelayCacheIO.readWithFallback(
-                cacheFileURL: self.cacheFileURL,
-                preBundledRelaysFileURL: self.prebundledRelaysFileURL
+        /// A timer source used for periodic updates
+        private var timerSource: DispatchSourceTimer?
+
+        /// A flag that indicates whether periodic updates are running
+        private var isPeriodicUpdatesEnabled = false
+
+        /// Observers
+        private let observerList = ObserverList<AnyRelayCacheObserver>()
+
+        /// A shared instance of `RelayCache`
+        static let shared: RelayCache.Tracker = {
+            let cacheFileURL = RelayCache.IO.defaultCacheFileURL(forSecurityApplicationGroupIdentifier: ApplicationConfiguration.securityGroupIdentifier)!
+            let prebundledRelaysFileURL = RelayCache.IO.preBundledRelaysFileURL!
+
+            return Tracker(
+                cacheFileURL: cacheFileURL,
+                prebundledRelaysFileURL: prebundledRelaysFileURL
             )
-        }.schedule(on: stateQueue)
-    }
+        }()
 
-    // MARK: - Observation
+        private init(cacheFileURL: URL, prebundledRelaysFileURL: URL) {
+            self.cacheFileURL = cacheFileURL
+            self.prebundledRelaysFileURL = prebundledRelaysFileURL
+        }
 
-    func addObserver<T: RelayCacheObserver>(_ observer: T) {
-        observerList.append(AnyRelayCacheObserver(observer))
-    }
+        func startPeriodicUpdates() {
+            stateQueue.async {
+                guard !self.isPeriodicUpdatesEnabled else { return }
 
-    func removeObserver<T: RelayCacheObserver>(_ observer: T) {
-        observerList.remove(AnyRelayCacheObserver(observer))
-    }
+                self.isPeriodicUpdatesEnabled = true
 
-    // MARK: - Private instance methods
+                switch RelayCache.IO.read(cacheFileURL: self.cacheFileURL) {
+                case .success(let cachedRelayList):
+                    if let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelayList.updatedAt) {
+                        self.scheduleRepeatingTimer(startTime: .now() + nextUpdate.timeIntervalSinceNow)
+                    }
 
-    private func downloadRelays(previouslyCachedRelays: CachedRelays?) -> Result<RelayFetchResult, RelayCacheError>.Promise {
-        return REST.Client.shared.getRelays(etag: previouslyCachedRelays?.etag)
-            .receive(on: stateQueue)
-            .mapError { error in
-                self.logger.error(chainedError: error, message: "Failed to download relays")
-                return RelayCacheError.rest(error)
+                case .failure(let readError):
+                    self.logger.error(chainedError: readError, message: "Failed to read the relay cache")
+
+                    if Self.shouldDownloadRelaysOnReadFailure(readError) {
+                        self.scheduleRepeatingTimer(startTime: .now())
+                    }
+                }
             }
-            .mapThen { result in
+        }
+
+        func stopPeriodicUpdates() {
+            stateQueue.async {
+                guard self.isPeriodicUpdatesEnabled else { return }
+
+                self.isPeriodicUpdatesEnabled = false
+
+                self.timerSource?.cancel()
+                self.timerSource = nil
+            }
+        }
+
+        func updateRelays() -> Result<RelayCache.FetchResult, RelayCache.Error>.Promise {
+            return Promise.deferred {
+                return RelayCache.IO.read(cacheFileURL: self.cacheFileURL)
+            }
+            .schedule(on: stateQueue)
+            .then { result in
                 switch result {
-                case .newContent(let etag, let relays):
-                    let numRelays = relays.wireguard.relays.count
+                case .success(let cachedRelays):
+                    let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelays.updatedAt)
 
-                    self.logger.info("Downloaded \(numRelays) relays")
+                    if let nextUpdate = nextUpdate, nextUpdate <= Date() {
+                        return self.downloadRelays(previouslyCachedRelays: cachedRelays)
+                    } else {
+                        return .success(.throttled)
+                    }
 
-                    let cachedRelays = CachedRelays(etag: etag, relays: relays, updatedAt: Date())
+                case .failure(let readError):
+                    self.logger.error(chainedError: readError, message: "Failed to read the relay cache to determine if it needs to be updated")
 
-                    return RelayCacheIO.write(cacheFileURL: self.cacheFileURL, record: cachedRelays)
-                        .asPromise()
-                        .map { _ in
-                            self.observerList.forEach { (observer) in
-                                observer.relayCache(self, didUpdateCachedRelays: cachedRelays)
+                    if Self.shouldDownloadRelaysOnReadFailure(readError) {
+                        return self.downloadRelays(previouslyCachedRelays: nil)
+                    } else {
+                        return .failure(readError)
+                    }
+                }
+            }
+        }
+
+        func read() -> Result<CachedRelays, RelayCache.Error>.Promise {
+            return Promise.deferred {
+                return RelayCache.IO.readWithFallback(
+                    cacheFileURL: self.cacheFileURL,
+                    preBundledRelaysFileURL: self.prebundledRelaysFileURL
+                )
+            }.schedule(on: stateQueue)
+        }
+
+        // MARK: - Observation
+
+        func addObserver<T: RelayCacheObserver>(_ observer: T) {
+            observerList.append(AnyRelayCacheObserver(observer))
+        }
+
+        func removeObserver<T: RelayCacheObserver>(_ observer: T) {
+            observerList.remove(AnyRelayCacheObserver(observer))
+        }
+
+        // MARK: - Private instance methods
+
+        private func downloadRelays(previouslyCachedRelays: CachedRelays?) -> Result<RelayCache.FetchResult, RelayCache.Error>.Promise {
+            return REST.Client.shared.getRelays(etag: previouslyCachedRelays?.etag)
+                .receive(on: stateQueue)
+                .mapError { error in
+                    self.logger.error(chainedError: error, message: "Failed to download relays")
+                    return RelayCache.Error.rest(error)
+                }
+                .mapThen { result in
+                    switch result {
+                    case .newContent(let etag, let relays):
+                        let numRelays = relays.wireguard.relays.count
+
+                        self.logger.info("Downloaded \(numRelays) relays")
+
+                        let cachedRelays = CachedRelays(etag: etag, relays: relays, updatedAt: Date())
+
+                        return RelayCache.IO.write(cacheFileURL: self.cacheFileURL, record: cachedRelays)
+                            .asPromise()
+                            .map { _ in
+                                self.observerList.forEach { (observer) in
+                                    observer.relayCache(self, didUpdateCachedRelays: cachedRelays)
+                                }
+
+                                return .newContent
+                            }
+                            .onFailure { error in
+                                self.logger.error(chainedError: error, message: "Failed to store downloaded relays")
                             }
 
-                            return .newContent
-                        }
-                        .onFailure { error in
-                            self.logger.error(chainedError: error, message: "Failed to store downloaded relays")
-                        }
+                    case .notModified:
+                        self.logger.info("Relays haven't changed since last check.")
 
-                case .notModified:
-                    self.logger.info("Relays haven't changed since last check.")
+                        var cachedRelays = previouslyCachedRelays!
+                        cachedRelays.updatedAt = Date()
 
-                    var cachedRelays = previouslyCachedRelays!
-                    cachedRelays.updatedAt = Date()
+                        return RelayCache.IO.write(cacheFileURL: self.cacheFileURL, record: cachedRelays)
+                            .asPromise()
+                            .map { _ in
+                                return .sameContent
+                            }
+                            .onFailure { error in
+                                self.logger.error(chainedError: error, message: "Failed to update cached relays timestamp")
+                            }
+                    }
+                }
+                .block(on: downloadQueue)
+        }
 
-                    return RelayCacheIO.write(cacheFileURL: self.cacheFileURL, record: cachedRelays)
-                        .asPromise()
-                        .map { _ in
-                            return .sameContent
-                        }
-                        .onFailure { error in
-                            self.logger.error(chainedError: error, message: "Failed to update cached relays timestamp")
-                        }
+        private func scheduleRepeatingTimer(startTime: DispatchWallTime) {
+            let timerSource = DispatchSource.makeTimerSource(queue: stateQueue)
+            timerSource.setEventHandler { [weak self] in
+                guard let self = self else { return }
+
+                if self.isPeriodicUpdatesEnabled {
+                    self.updateRelays().observe { _ in }
                 }
             }
-            .block(on: downloadQueue)
-    }
 
-    private func scheduleRepeatingTimer(startTime: DispatchWallTime) {
-        let timerSource = DispatchSource.makeTimerSource(queue: stateQueue)
-        timerSource.setEventHandler { [weak self] in
-            guard let self = self else { return }
+            timerSource.schedule(wallDeadline: startTime, repeating: .seconds(kUpdateIntervalSeconds))
+            timerSource.activate()
 
-            if self.isPeriodicUpdatesEnabled {
-                self.updateRelays().observe { _ in }
+            self.timerSource = timerSource
+        }
+
+        // MARK: - Private class methods
+
+        private class func nextUpdateDate(lastUpdatedAt: Date) -> Date? {
+            return Calendar.current.date(
+                byAdding: .second,
+                value: kUpdateIntervalSeconds,
+                to: lastUpdatedAt
+            )
+        }
+
+        private class func shouldDownloadRelaysOnReadFailure(_ error: RelayCache.Error) -> Bool {
+            switch error {
+            case .readPrebundledRelays, .decodePrebundledRelays, .decodeCache:
+                return true
+
+            case .readCache(CocoaError.fileReadNoSuchFile):
+                return true
+
+            default:
+                return false
             }
         }
-
-        timerSource.schedule(wallDeadline: startTime, repeating: .seconds(kUpdateIntervalSeconds))
-        timerSource.activate()
-
-        self.timerSource = timerSource
     }
 
-    // MARK: - Private class methods
-
-    private class func nextUpdateDate(lastUpdatedAt: Date) -> Date? {
-        return Calendar.current.date(
-            byAdding: .second,
-            value: kUpdateIntervalSeconds,
-            to: lastUpdatedAt
-        )
-    }
-
-    private class func shouldDownloadRelaysOnReadFailure(_ error: RelayCacheError) -> Bool {
-        switch error {
-        case .readPrebundledRelays, .decodePrebundledRelays, .decodeCache:
-            return true
-
-        case .readCache(CocoaError.fileReadNoSuchFile):
-            return true
-
-        default:
-            return false
-        }
-    }
 }

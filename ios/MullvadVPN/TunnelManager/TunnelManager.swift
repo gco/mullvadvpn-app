@@ -43,7 +43,7 @@ class TunnelManager {
         case readTunnelSettings(TunnelSettingsManager.Error)
 
         /// A failure to read relays cache
-        case readRelays(RelayCacheError)
+        case readRelays(RelayCache.Error)
 
         /// A failure to find a relay satisfying the given constraints
         case cannotSatisfyRelayConstraints
@@ -241,7 +241,7 @@ class TunnelManager {
                 resolver.resolve(value: .success(()))
 
             case .disconnected, .pendingReconnect:
-                RelayCacheTracker.shared.read()
+                RelayCache.Tracker.shared.read()
                     .mapError { error in
                         return .readRelays(error)
                     }

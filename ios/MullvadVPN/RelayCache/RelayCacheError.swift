@@ -8,32 +8,36 @@
 
 import Foundation
 
-/// Error emitted by read and write functions
-enum RelayCacheError: ChainedError {
-    case readCache(Error)
-    case readPrebundledRelays(Error)
-    case decodePrebundledRelays(Error)
-    case writeCache(Error)
-    case encodeCache(Error)
-    case decodeCache(Error)
-    case rest(REST.Error)
+extension RelayCache {
 
-    var errorDescription: String? {
-        switch self {
-        case .encodeCache:
-            return "Encode cache error"
-        case .decodeCache:
-            return "Decode cache error"
-        case .readCache:
-            return "Read cache error"
-        case .readPrebundledRelays:
-            return "Read pre-bundled relays error"
-        case .decodePrebundledRelays:
-            return "Decode pre-bundled relays error"
-        case .writeCache:
-            return "Write cache error"
-        case .rest:
-            return "REST error"
+    /// Error emitted by RelayCache cluster.
+    enum Error: ChainedError {
+        case readCache(Swift.Error)
+        case readPrebundledRelays(Swift.Error)
+        case decodePrebundledRelays(Swift.Error)
+        case writeCache(Swift.Error)
+        case encodeCache(Swift.Error)
+        case decodeCache(Swift.Error)
+        case rest(REST.Error)
+
+        var errorDescription: String? {
+            switch self {
+            case .encodeCache:
+                return "Encode cache error"
+            case .decodeCache:
+                return "Decode cache error"
+            case .readCache:
+                return "Read cache error"
+            case .readPrebundledRelays:
+                return "Read pre-bundled relays error"
+            case .decodePrebundledRelays:
+                return "Decode pre-bundled relays error"
+            case .writeCache:
+                return "Write cache error"
+            case .rest:
+                return "REST error"
+            }
         }
     }
+
 }

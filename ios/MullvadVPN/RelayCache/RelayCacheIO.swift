@@ -8,10 +8,11 @@
 
 import Foundation
 
-enum RelayCacheIO {}
+extension RelayCache {
+    enum IO {}
+}
 
-extension RelayCacheIO {
-
+extension RelayCache.IO {
     /// The default cache file location bound by app group container.
     static func defaultCacheFileURL(forSecurityApplicationGroupIdentifier appGroupIdentifier: String) -> URL? {
         let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
@@ -25,18 +26,18 @@ extension RelayCacheIO {
     }
 
     /// Safely read the cache file from disk using file coordinator.
-    static func read(cacheFileURL: URL) -> Result<CachedRelays, RelayCacheError> {
-        var result: Result<CachedRelays, RelayCacheError>?
+    static func read(cacheFileURL: URL) -> Result<RelayCache.CachedRelays, RelayCache.Error> {
+        var result: Result<RelayCache.CachedRelays, RelayCache.Error>?
         let fileCoordinator = NSFileCoordinator(filePresenter: nil)
 
         let accessor = { (fileURLForReading: URL) -> Void in
             // Decode data from disk
             result = Result { try Data(contentsOf: fileURLForReading) }
-                .mapError { RelayCacheError.readCache($0) }
-                .flatMap { (data) in
-                    Result { try JSONDecoder().decode(CachedRelays.self, from: data) }
-                        .mapError { RelayCacheError.decodeCache($0) }
-                }
+            .mapError { RelayCache.Error.readCache($0) }
+            .flatMap { (data) in
+                Result { try JSONDecoder().decode(RelayCache.CachedRelays.self, from: data) }
+                .mapError { RelayCache.Error.decodeCache($0) }
+            }
         }
 
         var error: NSError?
@@ -54,12 +55,12 @@ extension RelayCacheIO {
 
     /// Safely read the cache file from disk using file coordinator and fallback to prebundled relays in case if the
     /// relay cache file is missing.
-    static func readWithFallback(cacheFileURL: URL, preBundledRelaysFileURL: URL) -> Result<CachedRelays, RelayCacheError> {
+    static func readWithFallback(cacheFileURL: URL, preBundledRelaysFileURL: URL) -> Result<RelayCache.CachedRelays, RelayCache.Error> {
         return Self.read(cacheFileURL: cacheFileURL)
-            .flatMapError { (error) -> Result<CachedRelays, RelayCacheError> in
+            .flatMapError { (error) -> Result<RelayCache.CachedRelays, RelayCache.Error> in
                 switch error {
                 case .decodeCache, .readCache(CocoaError.fileReadNoSuchFile):
-                    return RelayCacheIO.readPrebundledRelays(fileURL: preBundledRelaysFileURL)
+                    return RelayCache.IO.readPrebundledRelays(fileURL: preBundledRelaysFileURL)
                 default:
                     return .failure(error)
                 }
@@ -67,33 +68,33 @@ extension RelayCacheIO {
     }
 
     /// Read pre-bundled relays file from disk.
-    static func readPrebundledRelays(fileURL: URL) -> Result<CachedRelays, RelayCacheError> {
+    static func readPrebundledRelays(fileURL: URL) -> Result<RelayCache.CachedRelays, RelayCache.Error> {
         return Result { try Data(contentsOf: fileURL) }
-            .mapError { RelayCacheError.readPrebundledRelays($0) }
-            .flatMap { (data) -> Result<CachedRelays, RelayCacheError> in
-                return Result { try REST.Coding.makeJSONDecoder().decode(ServerRelaysResponse.self, from: data) }
-                    .mapError { RelayCacheError.decodePrebundledRelays($0) }
-                    .map { (relays) -> CachedRelays in
-                        return CachedRelays(
-                            relays: relays,
-                            updatedAt: Date(timeIntervalSince1970: 0)
-                        )
-                }
+        .mapError { RelayCache.Error.readPrebundledRelays($0) }
+        .flatMap { (data) -> Result<RelayCache.CachedRelays, RelayCache.Error> in
+            return Result { try REST.Coding.makeJSONDecoder().decode(ServerRelaysResponse.self, from: data) }
+            .mapError { RelayCache.Error.decodePrebundledRelays($0) }
+            .map { (relays) -> RelayCache.CachedRelays in
+                return RelayCache.CachedRelays(
+                    relays: relays,
+                    updatedAt: Date(timeIntervalSince1970: 0)
+                )
+            }
         }
     }
 
     /// Safely write the cache file on disk using file coordinator.
-    static func write(cacheFileURL: URL, record: CachedRelays) -> Result<(), RelayCacheError> {
-        var result: Result<(), RelayCacheError>?
+    static func write(cacheFileURL: URL, record: RelayCache.CachedRelays) -> Result<(), RelayCache.Error> {
+        var result: Result<(), RelayCache.Error>?
         let fileCoordinator = NSFileCoordinator(filePresenter: nil)
 
         let accessor = { (fileURLForWriting: URL) -> Void in
             result = Result { try JSONEncoder().encode(record) }
-                .mapError { RelayCacheError.encodeCache($0) }
-                .flatMap { (data) in
-                    Result { try data.write(to: fileURLForWriting) }
-                        .mapError { RelayCacheError.writeCache($0) }
-                }
+            .mapError { RelayCache.Error.encodeCache($0) }
+            .flatMap { (data) in
+                Result { try data.write(to: fileURLForWriting) }
+                .mapError { RelayCache.Error.writeCache($0) }
+            }
         }
 
         var error: NSError?

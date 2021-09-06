@@ -34,6 +34,8 @@
 		5820675726E652A600655B05 /* REST.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820674D26E6510200655B05 /* REST.swift */; };
 		5820675826E652AF00655B05 /* RelayCacheIO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585DA87C26B0254000B8C587 /* RelayCacheIO.swift */; };
 		5820675926E652BE00655B05 /* RESTCoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585DA88926B027A300B8C587 /* RESTCoding.swift */; };
+		5820675B26E6576800655B05 /* RelayCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675A26E6576800655B05 /* RelayCache.swift */; };
+		5820675C26E6576800655B05 /* RelayCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675A26E6576800655B05 /* RelayCache.swift */; };
 		5823FA5126CA690600283BF8 /* OSLogHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA4F26CA690600283BF8 /* OSLogHandler.swift */; };
 		5823FA5426CE49F700283BF8 /* TunnelObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA5326CE49F600283BF8 /* TunnelObserver.swift */; };
 		5823FA5626CE4A2B00283BF8 /* AnyTunnelObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA5526CE4A2B00283BF8 /* AnyTunnelObserver.swift */; };
@@ -345,6 +347,7 @@
 		5820674826E63EC800655B05 /* Promise+BackgroundTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Promise+BackgroundTask.swift"; sourceTree = "<group>"; };
 		5820674D26E6510200655B05 /* REST.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = REST.swift; sourceTree = "<group>"; };
 		5820674F26E6514100655B05 /* HTTP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTP.swift; sourceTree = "<group>"; };
+		5820675A26E6576800655B05 /* RelayCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayCache.swift; sourceTree = "<group>"; };
 		5823FA4F26CA690600283BF8 /* OSLogHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OSLogHandler.swift; sourceTree = "<group>"; };
 		5823FA5326CE49F600283BF8 /* TunnelObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelObserver.swift; sourceTree = "<group>"; };
 		5823FA5526CE4A2B00283BF8 /* AnyTunnelObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyTunnelObserver.swift; sourceTree = "<group>"; };
@@ -653,6 +656,7 @@
 		585DA87526B0249A00B8C587 /* RelayCache */ = {
 			isa = PBXGroup;
 			children = (
+				5820675A26E6576800655B05 /* RelayCache.swift */,
 				585DA87626B024A600B8C587 /* CachedRelays.swift */,
 				58BFA5C522A7C97F00A6173D /* RelayCacheTracker.swift */,
 				585DA87926B024F900B8C587 /* RelayCacheError.swift */,
@@ -1214,6 +1218,7 @@
 				5857F24724C882D700CF6F47 /* SelectLocationNavigationController.swift in Sources */,
 				5846227126E229F20035F7C2 /* AppStoreSubscription.swift in Sources */,
 				58E1337126D2BE9C00CC316B /* AnyOptional.swift in Sources */,
+				5820675B26E6576800655B05 /* RelayCache.swift in Sources */,
 				5846226526E0D9630035F7C2 /* ProductsRequestOperation.swift in Sources */,
 				585DA87D26B0254000B8C587 /* RelayCacheIO.swift in Sources */,
 				58BA693123EADA6A009DC256 /* SimulatorTunnelProvider.swift in Sources */,
@@ -1378,6 +1383,7 @@
 				58AEEF662344A37400C9BBD5 /* KeychainError.swift in Sources */,
 				5840250222B1124600E4CFEC /* IPAddress+Codable.swift in Sources */,
 				58E1337226D2BE9C00CC316B /* AnyOptional.swift in Sources */,
+				5820675C26E6576800655B05 /* RelayCache.swift in Sources */,
 				58CE5E7C224146470008646E /* PacketTunnelProvider.swift in Sources */,
 				58FAEDF1245069CA00CB0F5B /* KeychainAttributes.swift in Sources */,
 				586AA296234B696B00502875 /* WireguardAssociatedAddresses.swift in Sources */,

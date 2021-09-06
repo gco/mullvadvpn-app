@@ -215,10 +215,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     /// Load relay cache with potential networking to refresh the cache and pick the relay for the
     /// given relay constraints.
     private class func selectRelayEndpoint(relayConstraints: RelayConstraints) -> Result<RelaySelectorResult, PacketTunnelProviderError> {
-        let cacheFileURL = RelayCacheIO.defaultCacheFileURL(forSecurityApplicationGroupIdentifier: ApplicationConfiguration.securityGroupIdentifier)!
-        let prebundledRelaysURL = RelayCacheIO.preBundledRelaysFileURL!
+        let cacheFileURL = RelayCache.IO.defaultCacheFileURL(forSecurityApplicationGroupIdentifier: ApplicationConfiguration.securityGroupIdentifier)!
+        let prebundledRelaysURL = RelayCache.IO.preBundledRelaysFileURL!
 
-        return RelayCacheIO.readWithFallback(cacheFileURL: cacheFileURL, preBundledRelaysFileURL: prebundledRelaysURL)
+        return RelayCache.IO.readWithFallback(cacheFileURL: cacheFileURL, preBundledRelaysFileURL: prebundledRelaysURL)
             .mapError { relayCacheError -> PacketTunnelProviderError in
                 return .readRelayCache(relayCacheError)
             }
@@ -234,7 +234,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
 enum PacketTunnelProviderError: ChainedError {
     /// Failure to read the relay cache
-    case readRelayCache(RelayCacheError)
+    case readRelayCache(RelayCache.Error)
 
     /// Failure to satisfy the relay constraint
     case noRelaySatisfyingConstraint

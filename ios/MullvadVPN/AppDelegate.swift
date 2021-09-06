@@ -28,7 +28,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private var connectController: ConnectViewController?
     private weak var settingsNavController: SettingsNavigationController?
 
-    private var cachedRelays: CachedRelays? {
+    private var cachedRelays: RelayCache.CachedRelays? {
         didSet {
             if let cachedRelays = cachedRelays {
                 self.selectLocationViewController?.setCachedRelays(cachedRelays)
@@ -67,10 +67,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         self.window?.rootViewController = launchController
 
         // Add relay cache observer
-        RelayCacheTracker.shared.addObserver(self)
+        RelayCache.Tracker.shared.addObserver(self)
 
         // Load initial relays
-        _ = RelayCacheTracker.shared.read()
+        _ = RelayCache.Tracker.shared.read()
             .receive(on: .main)
             .observe { completion in
                 guard let result = completion.unwrappedValue else { return }
@@ -124,18 +124,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         TunnelManager.shared.refreshTunnelState()
 
         // Start periodic relays updates
-        RelayCacheTracker.shared.startPeriodicUpdates()
+        RelayCache.Tracker.shared.startPeriodicUpdates()
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
         // Stop periodic relays updates
-        RelayCacheTracker.shared.stopPeriodicUpdates()
+        RelayCache.Tracker.shared.stopPeriodicUpdates()
     }
 
     func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
         logger?.info("Begin background refresh")
 
-        RelayCacheTracker.shared.updateRelays()
+        RelayCache.Tracker.shared.updateRelays()
             .observe { completion in
                 let backgroundFetchResult: UIBackgroundFetchResult
                 let updateRelaysResult = completion.unwrappedValue!
@@ -645,7 +645,7 @@ extension AppDelegate: UIAdaptivePresentationControllerDelegate {
 
 extension AppDelegate: RelayCacheObserver {
 
-    func relayCache(_ relayCache: RelayCacheTracker, didUpdateCachedRelays cachedRelays: CachedRelays) {
+    func relayCache(_ relayCache: RelayCache.Tracker, didUpdateCachedRelays cachedRelays: RelayCache.CachedRelays) {
         DispatchQueue.main.async {
             self.cachedRelays = cachedRelays
         }
