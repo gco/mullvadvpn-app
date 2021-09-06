@@ -56,6 +56,7 @@
 		5846227326E22A160035F7C2 /* AppStorePaymentObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5846227226E22A160035F7C2 /* AppStorePaymentObserver.swift */; };
 		5846227526E22A350035F7C2 /* AnyAppStorePaymentObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5846227426E22A350035F7C2 /* AnyAppStorePaymentObserver.swift */; };
 		5846227726E22A7C0035F7C2 /* AppStorePaymentManagerDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5846227626E22A7C0035F7C2 /* AppStorePaymentManagerDelegate.swift */; };
+		5846227A26E24F1F0035F7C2 /* ExclusivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 580EE20524B3222200F9D8A1 /* ExclusivityController.swift */; };
 		584789B8264D4A2A000E45FB /* old_le_root_cert.cer in Resources */ = {isa = PBXBuildFile; fileRef = 584789B4264D4A2A000E45FB /* old_le_root_cert.cer */; };
 		584789B9264D4A2A000E45FB /* old_le_root_cert.cer in Resources */ = {isa = PBXBuildFile; fileRef = 584789B4264D4A2A000E45FB /* old_le_root_cert.cer */; };
 		584789BE264D4A2A000E45FB /* new_le_root_cert.cer in Resources */ = {isa = PBXBuildFile; fileRef = 584789B7264D4A2A000E45FB /* new_le_root_cert.cer */; };
@@ -1183,6 +1184,7 @@
 				585DA8A426B14E1200B8C587 /* RestError.swift in Sources */,
 				58A8BE81239FBE62006B74AC /* IPEndpoint.swift in Sources */,
 				5896AE7F246ACE76005B36CB /* Keychain.swift in Sources */,
+				5846227A26E24F1F0035F7C2 /* ExclusivityController.swift in Sources */,
 				58E1336B26D2BE3700CC316B /* PromiseObserver.swift in Sources */,
 				58871D1825D5359B002297FA /* MullvadRest.swift in Sources */,
 				58871D2325D535D2002297FA /* IPAddressRange+Codable.swift in Sources */,
