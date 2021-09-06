@@ -183,7 +183,7 @@ final class Promise<Value> {
 
             state = .executing
 
-            let resolver = PromiseResolver(promise: self, queue: queue)
+            let resolver = PromiseResolver(promise: self)
 
             queue?.async { block(resolver) } ?? block(resolver)
         }
@@ -232,13 +232,9 @@ struct PromiseResolver<Value> {
     /// Target promise.
     private let promise: Promise<Value>
 
-    /// Queue on which promise is going to be executed.
-    let queue: DispatchQueue?
-
     /// Private initializer.
-    fileprivate init(promise: Promise<Value>, queue: DispatchQueue?) {
+    fileprivate init(promise: Promise<Value>) {
         self.promise = promise
-        self.queue = queue
     }
 
     /// Resolve the promise with `PromiseCompletion`.
