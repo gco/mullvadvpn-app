@@ -46,8 +46,15 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     override init() {
         initLoggingSystem(bundleIdentifier: Bundle.main.bundleIdentifier!)
 
-        providerLogger = Logger(label: "PacketTunnelProvider")
-        tunnelLogger = Logger(label: "WireGuard")
+        var providerLogger = Logger(label: "PacketTunnelProvider")
+        var tunnelLogger = Logger(label: "WireGuard")
+
+        let pid = ProcessInfo.processInfo.processIdentifier
+        providerLogger[metadataKey: "pid"] = .stringConvertible(pid)
+        tunnelLogger[metadataKey: "pid"] = .stringConvertible(pid)
+
+        self.providerLogger = providerLogger
+        self.tunnelLogger = tunnelLogger
     }
 
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
