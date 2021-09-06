@@ -377,9 +377,7 @@ class TunnelManager {
 
     /// Remove the account token and remove the active tunnel
     func unsetAccount() ->  Result<(), Error>.Promise {
-        return Promise.deferred {
-            return self.tunnelInfo
-        }
+        return Promise.deferred { self.tunnelInfo }
             .some(or: Error.missingAccount)
             .mapThen { tunnelInfo in
                 let publicKey = tunnelInfo.tunnelSettings.interface.publicKey
@@ -457,9 +455,7 @@ class TunnelManager {
     }
 
     func regeneratePrivateKey() -> Result<(), Error>.Promise {
-        return Promise.deferred {
-            return self.tunnelInfo
-        }
+        return Promise.deferred { self.tunnelInfo }
             .some(or: .missingAccount)
             .mapThen { tunnelInfo in
                 let newPrivateKey = PrivateKeyWithMetadata()
