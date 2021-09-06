@@ -80,7 +80,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             )
         }
 
-        _ = makeConfiguration(appSelectorResult.flattenValue)
+        makeConfiguration(appSelectorResult.flattenValue)
             .asPromise()
             .receive(on: dispatchQueue)
             .mapThen { tunnelConfiguration in
@@ -122,7 +122,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
-        _ = PacketTunnelIpcHandler.decodeRequest(messageData: messageData)
+        PacketTunnelIpcHandler.decodeRequest(messageData: messageData)
             .mapError { PacketTunnelProviderError.ipcHandler($0) }
             .asPromise()
             .onFailure { error in

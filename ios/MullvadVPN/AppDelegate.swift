@@ -70,7 +70,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         RelayCache.Tracker.shared.addObserver(self)
 
         // Load initial relays
-        _ = RelayCache.Tracker.shared.read()
+        RelayCache.Tracker.shared.read()
             .receive(on: .main)
             .observe { completion in
                 guard let result = completion.unwrappedValue else { return }
@@ -86,7 +86,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Load tunnels
         self.logger?.debug("Load tunnels")
-        _ = TunnelManager.shared.loadTunnel(accountToken: Account.shared.token)
+
+        TunnelManager.shared.loadTunnel(accountToken: Account.shared.token)
             .receive(on: .main)
             .onSuccess { _ in
                 self.logger?.debug("Loaded tunnels")
@@ -104,14 +105,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 case .migrateTunnelSettings(_), .readTunnelSettings(_):
                     // Forget that user was logged in since tunnel settings are likely corrupt
                     // or missing.
-                    Account.shared.forget {
-                        self.didFinishInitialization()
-                    }
+                    Account.shared.forget()
+                        .observe { _ in
+                            self.didFinishInitialization()
+                        }
 
                 default:
                     fatalError("Unexpected error coming from loadTunnel()")
                 }
             }
+            .observe { _ in }
 
         // Show the window
         self.window?.makeKeyAndVisible()
@@ -427,37 +430,39 @@ extension AppDelegate: LoginViewControllerDelegate {
     func loginViewController(_ controller: LoginViewController, loginWithAccountToken accountToken: String, completion: @escaping (Result<REST.AccountResponse, Account.Error>) -> Void) {
         self.rootContainer?.setEnableSettingsButton(false)
 
-        Account.shared.login(with: accountToken) { (result) in
-            switch result {
-            case .success:
+        Account.shared.login(with: accountToken)
+            .onSuccess { _ in
                 self.logger?.debug("Logged in with existing token")
                 // RootContainer's settings button will be re-enabled in `loginViewControllerDidLogin`
-
-            case .failure(let error):
+            }
+            .onFailure { error in
                 self.logger?.error(chainedError: error, message: "Failed to log in with existing account")
                 self.rootContainer?.setEnableSettingsButton(true)
             }
+            .observe { promiseCompletion in
+                guard let result = promiseCompletion.unwrappedValue else { return }
 
-            completion(result)
-        }
+                completion(result)
+            }
     }
 
     func loginViewControllerLoginWithNewAccount(_ controller: LoginViewController, completion: @escaping (Result<REST.AccountResponse, Account.Error>) -> Void) {
         self.rootContainer?.setEnableSettingsButton(false)
 
-        Account.shared.loginWithNewAccount { (result) in
-            switch result {
-            case .success:
+        Account.shared.loginWithNewAccount()
+            .onSuccess { _ in
                 self.logger?.debug("Logged in with new account token")
                 // RootContainer's settings button will be re-enabled in `loginViewControllerDidLogin`
-
-            case .failure(let error):
+            }
+            .onFailure { error in
                 self.logger?.error(chainedError: error, message: "Failed to log in with new account")
                 self.rootContainer?.setEnableSettingsButton(true)
             }
+            .observe { promiseCompletion in
+                guard let result = promiseCompletion.unwrappedValue else { return }
 
-            completion(result)
-        }
+                completion(result)
+            }
     }
 
     func loginViewControllerDidLogin(_ controller: LoginViewController) {
@@ -569,9 +574,9 @@ extension AppDelegate: SelectLocationViewControllerDelegate {
     private func selectLocationControllerDidSelectRelayLocation(_ relayLocation: RelayLocation) {
         let relayConstraints = RelayConstraints(location: .only(relayLocation))
 
-        _ = TunnelManager.shared.setRelayConstraints(relayConstraints)
+        TunnelManager.shared.setRelayConstraints(relayConstraints)
             .receive(on: .main)
-            .observe { _ in
+            .onComplete { _ in
                 self.relayConstraints = relayConstraints
             }
             .onSuccess { _ in
@@ -581,6 +586,7 @@ extension AppDelegate: SelectLocationViewControllerDelegate {
             .onFailure { error in
                 self.logger?.error(chainedError: error, message: "Failed to update relay constraints")
             }
+            .observe { _ in }
     }
 }
 

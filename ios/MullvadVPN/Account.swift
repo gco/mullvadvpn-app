@@ -98,10 +98,6 @@ class Account {
         }
     }
 
-    private enum ExclusivityCategory {
-        case exclusive
-    }
-
     private let dispatchQueue = DispatchQueue(label: "AccountQueue")
 
     var isLoggedIn: Bool {
@@ -113,8 +109,8 @@ class Account {
         UserDefaults.standard.set(true, forKey: UserDefaultsKeys.isAgreedToTermsOfService.rawValue)
     }
 
-    func loginWithNewAccount(completionHandler: @escaping (Result<REST.AccountResponse, Error>) -> Void) {
-        _ = REST.Client.shared.createAccount()
+    func loginWithNewAccount() -> Result<REST.AccountResponse, Account.Error>.Promise {
+        return REST.Client.shared.createAccount()
             .mapError { error in
                 return Error.createAccount(error)
             }
@@ -130,17 +126,14 @@ class Account {
             }
             .block(on: dispatchQueue)
             .receive(on: .main)
-            .observe { completion in
-                completionHandler(completion.unwrappedValue!)
-            }
     }
 
     /// Perform the login and save the account token along with expiry (if available) to the
     /// application preferences.
-    func login(with accountToken: String, completionHandler: @escaping (Result<REST.AccountResponse, Error>) -> Void) {
-        _ = REST.Client.shared.getAccountExpiry(token: accountToken)
+    func login(with accountToken: String) -> Result<REST.AccountResponse, Account.Error>.Promise {
+        return REST.Client.shared.getAccountExpiry(token: accountToken)
             .mapError { error in
-                return Error.verifyAccount(error)
+                return Account.Error.verifyAccount(error)
             }
             .mapThen { response in
                 return self.setupTunnel(accountToken: response.token, expiry: response.expires)
@@ -153,18 +146,14 @@ class Account {
             }
             .block(on: dispatchQueue)
             .receive(on: .main)
-            .observe { completion in
-                completionHandler(completion.unwrappedValue!)
-            }
     }
 
     /// Perform the logout by erasing the account token and expiry from the application preferences.
-    func logout(completionHandler: @escaping (Result<(), Error>) -> Void) {
-        _ = TunnelManager.shared.unsetAccount()
+    func logout() -> Result<(), Account.Error>.Promise {
+        return TunnelManager.shared.unsetAccount()
             .mapError { error in
-                return Error.tunnelConfiguration(error)
+                return Account.Error.tunnelConfiguration(error)
             }
-            .block(on: dispatchQueue)
             .receive(on: .main)
             .onSuccess { _ in
                 self.removeFromPreferences()
@@ -172,15 +161,14 @@ class Account {
                     observer.accountDidLogout(self)
                 }
             }
-            .observe { completion in
-                completionHandler(completion.unwrappedValue!)
-            }
+            .block(on: dispatchQueue)
+            .receive(on: .main)
     }
 
     /// Forget that user was logged in, but do not attempt to unset account in `TunnelManager`.
     /// This function is used in cases where the tunnel or tunnel settings are corrupt.
-    func forget(completionHandler: @escaping () -> Void) {
-        _ = Promise<Void> { resolver in
+    func forget() -> Promise<Void> {
+        return Promise<Void> { resolver in
             self.removeFromPreferences()
             self.observerList.forEach { (observer) in
                 observer.accountDidLogout(self)
@@ -190,13 +178,10 @@ class Account {
         .schedule(on: .main)
         .block(on: dispatchQueue)
         .receive(on: .main)
-        .observe { _ in
-            completionHandler()
-        }
     }
 
     func updateAccountExpiry() {
-        _ = Promise<String?>.deferred { self.token }
+        Promise<String?>.deferred { self.token }
             .mapThen(defaultValue: nil) { token in
                 return REST.Client.shared.getAccountExpiry(token: token)
                     .onFailure { error in
@@ -260,7 +245,7 @@ extension Account: AppStorePaymentObserver {
     }
 
     func appStorePaymentManager(_ manager: AppStorePaymentManager, transaction: SKPaymentTransaction, accountToken: String, didFinishWithResponse response: REST.CreateApplePaymentResponse) {
-        _ = Promise.deferred { response }
+        Promise.deferred { response }
             .schedule(on: .main)
             .then { response in
                 let newExpiry = response.newExpiry

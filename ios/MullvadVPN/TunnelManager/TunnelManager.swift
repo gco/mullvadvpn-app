@@ -202,7 +202,7 @@ class TunnelManager {
     /// The given account token is used to ensure that the system tunnel was configured for the same
     /// account. The system tunnel is removed in case of inconsistency.
     func loadTunnel(accountToken: String?) -> Result<(), TunnelManager.Error>.Promise {
-        let promise = TunnelProviderManagerType.loadAllFromPreferences()
+        return TunnelProviderManagerType.loadAllFromPreferences()
             .receive(on: self.stateQueue)
             .mapError { error in
                 return .loadAllVPNConfigurations(error)
@@ -215,8 +215,6 @@ class TunnelManager {
             }
             .schedule(on: stateQueue)
             .block(on: tunnelQueue)
-
-        return promise
     }
 
     /// Refresh tunnel state.
@@ -229,7 +227,7 @@ class TunnelManager {
     }
 
     func startTunnel() {
-        _ = Result<(), Error>.Promise { resolver in
+        Result<(), Error>.Promise { resolver in
             guard let tunnelInfo = self.tunnelInfo else {
                 resolver.resolve(value: .failure(.missingAccount))
                 return
@@ -261,17 +259,17 @@ class TunnelManager {
                                 var tunnelOptions = PacketTunnelOptions()
 
                                 _ = Result { try tunnelOptions.setSelectorResult(selectorResult) }
-                                    .mapError { error -> Swift.Error in
-                                        self.logger.error(chainedError: AnyChainedError(error), message: "Failed to encode relay selector result.")
-                                        return error
-                                    }
+                                .mapError { error -> Swift.Error in
+                                    self.logger.error(chainedError: AnyChainedError(error), message: "Failed to encode relay selector result.")
+                                    return error
+                                }
 
                                 self.tunnelState = .connecting(selectorResult.tunnelConnectionInfo)
 
                                 return Result { try tunnelProvider.connection.startVPNTunnel(options: tunnelOptions.rawOptions()) }
-                                    .mapError { error in
-                                        return .startVPNTunnel(error)
-                                    }
+                                .mapError { error in
+                                    return .startVPNTunnel(error)
+                                }
                             }
                     }.observe { completion in
                         resolver.resolve(completion: completion)
@@ -282,15 +280,16 @@ class TunnelManager {
                 resolver.resolve(value: .success(()))
             }
         }
-            .schedule(on: stateQueue)
-            .block(on: tunnelQueue)
-            .onFailure { error in
-                self.sendFailureToObservers(error)
-            }
+        .schedule(on: stateQueue)
+        .block(on: tunnelQueue)
+        .onFailure { error in
+            self.sendFailureToObservers(error)
+        }
+        .observe { _ in }
     }
 
     func stopTunnel() {
-        _ = Result<(), Error>.Promise { resolver in
+        Result<(), Error>.Promise { resolver in
             guard let tunnelProvider = self.tunnelProvider else {
                 resolver.resolve(value: .failure(.missingAccount))
                 return
@@ -318,15 +317,16 @@ class TunnelManager {
                 resolver.resolve(value: .success(()))
             }
         }
-            .schedule(on: stateQueue)
-            .block(on: tunnelQueue)
-            .onFailure { error in
-                self.sendFailureToObservers(error)
-            }
+        .schedule(on: stateQueue)
+        .block(on: tunnelQueue)
+        .onFailure { error in
+            self.sendFailureToObservers(error)
+        }
+        .observe { _ in }
     }
 
     func reconnectTunnel() {
-        _ = Result<(), Error>.Promise { resolver in
+        Result<(), Error>.Promise { resolver in
             guard let tunnelIpc = self.tunnelIpc else {
                 resolver.resolve(value: .success(()))
                 return
@@ -350,203 +350,169 @@ class TunnelManager {
                 resolver.resolve(value: .success(()))
             }
         }
-            .schedule(on: stateQueue)
-            .block(on: tunnelQueue)
-            .observe { _ in }
+        .schedule(on: stateQueue)
+        .block(on: tunnelQueue)
+        .observe { _ in }
     }
 
     func setAccount(accountToken: String) -> Result<(), Error>.Promise {
-        let promise = Result<(), Error>.Promise { resolver in
-            _ = Self.makeTunnelSettings(accountToken: accountToken)
-                .asPromise()
-                .mapThen { tunnelSettings -> Result<TunnelSettings, Error>.Promise in
-                    let interfaceSettings = tunnelSettings.interface
-                    guard interfaceSettings.addresses.isEmpty else {
-                        return .success(tunnelSettings)
-                    }
+        return Promise.deferred { Self.makeTunnelSettings(accountToken: accountToken) }
+            .mapThen { tunnelSettings -> Result<TunnelSettings, Error>.Promise in
+                let interfaceSettings = tunnelSettings.interface
+                guard interfaceSettings.addresses.isEmpty else {
+                    return .success(tunnelSettings)
+                }
 
-                    // Push wireguard key if addresses were not received yet
-                    return self.pushWireguardKeyAndUpdateSettings(accountToken: accountToken, publicKey: interfaceSettings.publicKey)
-                }
-                .receive(on: self.stateQueue)
-                .onSuccess { tunnelSettings in
-                    self.tunnelInfo = TunnelInfo(token: accountToken, tunnelSettings: tunnelSettings)
-                }
-                .setOutput(())
-                .observe { completion in
-                    resolver.resolve(completion: completion)
-                }
-        }
+                // Push wireguard key if addresses were not received yet
+                return self.pushWireguardKeyAndUpdateSettings(accountToken: accountToken, publicKey: interfaceSettings.publicKey)
+            }
+            .receive(on: self.stateQueue)
+            .onSuccess { tunnelSettings in
+                self.tunnelInfo = TunnelInfo(token: accountToken, tunnelSettings: tunnelSettings)
+            }
+            .setOutput(())
             .schedule(on: stateQueue)
             .block(on: tunnelQueue)
-
-        return promise
     }
 
     /// Remove the account token and remove the active tunnel
     func unsetAccount() ->  Result<(), Error>.Promise {
-        let promise = Result<(), Error>.Promise { resolver in
-            guard let tunnelInfo = self.tunnelInfo else {
-                resolver.resolve(value: .failure(.missingAccount))
-                return
-            }
+        return Promise.deferred {
+            return self.tunnelInfo
+        }
+            .some(or: Error.missingAccount)
+            .mapThen { tunnelInfo in
+                let publicKey = tunnelInfo.tunnelSettings.interface.publicKey
 
-            let publicKey = tunnelInfo.tunnelSettings.interface.publicKey
+                return self.removeWireguardKeyFromServer(accountToken: tunnelInfo.token, publicKey: publicKey)
+                    .receive(on: self.stateQueue)
+                    .then { result -> Result<(), Error>.Promise in
+                        switch result {
+                        case .success(let isRemoved):
+                            self.logger.warning("Removed the WireGuard key from server: \(isRemoved)")
 
-            self.removeWireguardKeyFromServer(accountToken: tunnelInfo.token, publicKey: publicKey)
-                .receive(on: self.stateQueue)
-                .then { result -> Result<(), Error>.Promise in
-                    switch result {
-                    case .success(let isRemoved):
-                        self.logger.warning("Removed the WireGuard key from server: \(isRemoved)")
+                        case .failure(let error):
+                            self.logger.error(chainedError: error, message: "Unset account error")
+                        }
 
-                    case .failure(let error):
-                        self.logger.error(chainedError: error, message: "Unset account error")
-                    }
+                        // Unregister from receiving the tunnel state changes
+                        self.unregisterConnectionObserver()
+                        self.tunnelConnectionInfoToken = nil
+                        self.tunnelState = .disconnected
+                        self.tunnelIpc = nil
 
-                    // Unregister from receiving the tunnel state changes
-                    self.unregisterConnectionObserver()
-                    self.tunnelConnectionInfoToken = nil
-                    self.tunnelState = .disconnected
-                    self.tunnelIpc = nil
-
-                    // Remove settings from Keychain
-                    if case .failure(let error) = TunnelSettingsManager.remove(searchTerm: .accountToken(tunnelInfo.token)) {
-                        // Ignore Keychain errors because that normally means that the Keychain
-                        // configuration was already removed and we shouldn't be blocking the
-                        // user from logging out
-                        self.logger.error(
-                            chainedError: error,
-                            message: "Failure to remove tunnel setting from keychain when unsetting user account"
-                        )
-                    }
-
-                    self.tunnelInfo = nil
-
-                    guard let tunnelProvider = self.tunnelProvider else {
-                        return .success(())
-                    }
-
-                    self.tunnelProvider = nil
-
-                    // Remove VPN configuration
-                    return tunnelProvider.removeFromPreferences()
-                        .flatMapError { error -> Result<(), Error> in
-                            // Ignore error but log it
+                        // Remove settings from Keychain
+                        if case .failure(let error) = TunnelSettingsManager.remove(searchTerm: .accountToken(tunnelInfo.token)) {
+                            // Ignore Keychain errors because that normally means that the Keychain
+                            // configuration was already removed and we shouldn't be blocking the
+                            // user from logging out
                             self.logger.error(
-                                chainedError: Error.removeVPNConfiguration(error),
-                                message: "Failure to remove system VPN configuration when unsetting user account."
+                                chainedError: error,
+                                message: "Failure to remove tunnel setting from keychain when unsetting user account"
                             )
+                        }
 
+                        self.tunnelInfo = nil
+
+                        guard let tunnelProvider = self.tunnelProvider else {
                             return .success(())
                         }
-                }
-                .observe { completion in
-                    resolver.resolve(completion: completion)
-                }
-        }
+
+                        self.tunnelProvider = nil
+
+                        // Remove VPN configuration
+                        return tunnelProvider.removeFromPreferences()
+                            .flatMapError { error -> Result<(), Error> in
+                                // Ignore error but log it
+                                self.logger.error(
+                                    chainedError: Error.removeVPNConfiguration(error),
+                                    message: "Failure to remove system VPN configuration when unsetting user account."
+                                )
+
+                                return .success(())
+                            }
+                    }
+            }
             .schedule(on: stateQueue)
             .block(on: tunnelQueue)
-
-        return promise
     }
 
     func verifyPublicKey() -> Result<Bool, Error>.Promise {
-        return Promise { resolver in
-            guard let tunnelInfo = self.tunnelInfo else {
-                resolver.resolve(value: .failure(.missingAccount))
-                return
-            }
-
-            REST.Client.shared.getWireguardKey(token: tunnelInfo.token, publicKey: tunnelInfo.tunnelSettings.interface.publicKey)
-                .map { _ in
-                    return true
-                }
-                .flatMapError { error in
-                    if case .server(.pubKeyNotFound) = error {
-                        return .success(false)
-                    } else {
-                        return .failure(.verifyWireguardKey(error))
+        return Promise.deferred { self.tunnelInfo }
+            .schedule(on: stateQueue)
+            .some(or: .missingAccount)
+            .mapThen { tunnelInfo in
+                return REST.Client.shared.getWireguardKey(token: tunnelInfo.token, publicKey: tunnelInfo.tunnelSettings.interface.publicKey)
+                    .map { _ in
+                        return true
                     }
-                }.observe { completion in
-                    resolver.resolve(completion: completion)
-                }
-        }
-        .schedule(on: stateQueue)
+                    .flatMapError { error in
+                        if case .server(.pubKeyNotFound) = error {
+                            return .success(false)
+                        } else {
+                            return .failure(.verifyWireguardKey(error))
+                        }
+                    }
+            }
     }
 
     func regeneratePrivateKey() -> Result<(), Error>.Promise {
-        let promise = Result<(), Error>.Promise { resolver in
-            guard let tunnelInfo = self.tunnelInfo else {
-                resolver.resolve(value: .failure(.missingAccount))
-                return
-            }
-
-            let newPrivateKey = PrivateKeyWithMetadata()
-            let oldPublicKeyMetadata = tunnelInfo.tunnelSettings.interface
-                .privateKey
-                .publicKeyWithMetadata
-
-            self.replaceWireguardKeyAndUpdateSettings(accountToken: tunnelInfo.token, oldPublicKey: oldPublicKeyMetadata, newPrivateKey: newPrivateKey)
-                .mapThen { newTunnelSettings in
-                    self.tunnelInfo?.tunnelSettings = newTunnelSettings
-
-                    return self.tunnelIpc.asPromise()
-                        .mapThen(defaultValue: .success(())) { ipc in
-                            return ipc.reloadTunnelSettings()
-                                .onFailure { error in
-                                    self.logger.error(chainedError: error, message: "Failed to reload tunnel settings after regenerating the key")
-                                }
-                                .flatMapError { error in
-                                    return .success(())
-                                }
-                        }
-                }
-                .observe { completion in
-                    resolver.resolve(completion: completion)
-                }
+        return Promise.deferred {
+            return self.tunnelInfo
         }
+            .some(or: .missingAccount)
+            .mapThen { tunnelInfo in
+                let newPrivateKey = PrivateKeyWithMetadata()
+                let oldPublicKeyMetadata = tunnelInfo.tunnelSettings.interface
+                    .privateKey
+                    .publicKeyWithMetadata
+
+                return self.replaceWireguardKeyAndUpdateSettings(accountToken: tunnelInfo.token, oldPublicKey: oldPublicKeyMetadata, newPrivateKey: newPrivateKey)
+                    .mapThen { newTunnelSettings in
+                        self.tunnelInfo?.tunnelSettings = newTunnelSettings
+
+                        return self.tunnelIpc.asPromise()
+                            .mapThen(defaultValue: .success(())) { ipc in
+                                return ipc.reloadTunnelSettings()
+                                    .onFailure { error in
+                                        self.logger.error(chainedError: error, message: "Failed to reload tunnel settings after regenerating the key")
+                                    }
+                                    .flatMapError { error in
+                                        return .success(())
+                                    }
+                            }
+                    }
+            }
             .schedule(on: stateQueue)
             .block(on: tunnelQueue)
-
-        return promise
     }
 
     func setRelayConstraints(_ newConstraints: RelayConstraints) -> Result<(), Error>.Promise {
-        let promise = Result<(), Error>.Promise { resolver in
-            self.updateTunnelSettings { tunnelSettings in
-                tunnelSettings.relayConstraints = newConstraints
-            }.observe { completion in
-                resolver.resolve(completion: completion)
-            }
-        }
+        return Promise.deferred { self.tunnelInfo }
             .schedule(on: stateQueue)
+            .some(or: .missingAccount)
+            .mapThen { tunnelInfo in
+                return self.updateTunnelSettings(token: tunnelInfo.token) { tunnelSettings in
+                    tunnelSettings.relayConstraints = newConstraints
+                }
+            }
             .block(on: tunnelQueue)
-
-        return promise
     }
 
     func setDNSSettings(_ newDNSSettings: DNSSettings) -> Result<(), TunnelManager.Error>.Promise {
-        let promise = Result<(), Error>.Promise { resolver in
-            self.updateTunnelSettings { tunnelSettings in
-                tunnelSettings.interface.dnsSettings = newDNSSettings
-            }
-            .observe { completion in
-                resolver.resolve(completion: completion)
-            }
-        }
+        return Promise.deferred { self.tunnelInfo }
             .schedule(on: stateQueue)
+            .some(or: .missingAccount)
+            .mapThen { tunnelInfo in
+                return self.updateTunnelSettings(token: tunnelInfo.token) { tunnelSettings in
+                    tunnelSettings.interface.dnsSettings = newDNSSettings
+                }
+            }
             .block(on: tunnelQueue)
-
-        return promise
     }
 
-    private func updateTunnelSettings(block: @escaping (inout TunnelSettings) -> Void) -> Result<(), Error>.Promise {
-        guard let tunnelInfo = self.tunnelInfo else {
-            return .failure(.missingAccount)
-        }
-
-        return Self.updateTunnelSettings(accountToken: tunnelInfo.token, block: block)
+    private func updateTunnelSettings(token: String, block: @escaping (inout TunnelSettings) -> Void) -> Result<(), Error>.Promise {
+        return Self.updateTunnelSettings(accountToken: token, block: block)
             .asPromise()
             .mapThen { newTunnelSettings in
                 self.tunnelInfo?.tunnelSettings = newTunnelSettings
@@ -823,7 +789,7 @@ class TunnelManager {
             }
 
         case .reasserting:
-            _ = tunnelIpc?.getTunnelConnectionInfo()
+            tunnelIpc?.getTunnelConnectionInfo()
                 .receive(on: stateQueue)
                 .storeCancellationToken(in: &tunnelConnectionInfoToken)
                 .onSuccess { connectionInfo in
@@ -831,9 +797,10 @@ class TunnelManager {
                         self.tunnelState = .reconnecting(connectionInfo)
                     }
                 }
+                .observe { _ in }
 
         case .connected:
-            _ = tunnelIpc?.getTunnelConnectionInfo()
+            tunnelIpc?.getTunnelConnectionInfo()
                 .receive(on: stateQueue)
                 .storeCancellationToken(in: &tunnelConnectionInfoToken)
                 .onSuccess { connectionInfo in
@@ -841,6 +808,7 @@ class TunnelManager {
                         self.tunnelState = .connected(connectionInfo)
                     }
                 }
+                .observe { _ in }
 
         case .disconnected:
             switch tunnelState {

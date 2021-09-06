@@ -14,7 +14,7 @@ extension Promise {
     func run(on operationQueue: OperationQueue) -> Promise<Value> {
         return Promise { resolver in
             let operation = AsyncBlockOperation { finish in
-                _ = self.observe { completion in
+                self.observe { completion in
                     resolver.resolve(completion: completion)
                     finish()
                 }
@@ -28,7 +28,7 @@ extension Promise {
     func run(on operationQueue: OperationQueue, categories: [String]) -> Promise<Value> {
         return Promise { resolver in
             let operation = AsyncBlockOperation { finish in
-                _ = self.observe { completion in
+                self.observe { completion in
                     resolver.resolve(completion: completion)
                     finish()
                 }

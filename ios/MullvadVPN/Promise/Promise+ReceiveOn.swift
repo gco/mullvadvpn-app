@@ -18,7 +18,7 @@ extension Promise {
     /// Dispatch the upstream value on another queue.
     func receive(on queue: DispatchQueue) -> Promise<Value> {
         return Promise<Value> { resolver in
-            _ = self.observe { completion in
+            self.observe { completion in
                 let work = DispatchWorkItem {
                     resolver.resolve(completion: completion, queue: queue)
                 }
@@ -35,7 +35,7 @@ extension Promise {
     /// Dispatch the upstream value on another queue after delay.
     func receive(on queue: DispatchQueue, after timeInterval: DispatchTimeInterval, timerType: TimerType) -> Promise<Value> {
         return Promise<Value> { resolver in
-            _ = self.observe { completion in
+            self.observe { completion in
                 let work = DispatchWorkItem {
                     resolver.resolve(completion: completion, queue: queue)
                 }

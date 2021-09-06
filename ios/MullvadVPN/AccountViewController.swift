@@ -116,11 +116,9 @@ class AccountViewController: UIViewController, AppStorePaymentObserver, AccountO
 
         purchaseButtonInteractionRestriction.increase(animated: true)
 
-        _ = AppStorePaymentManager.shared.requestProducts(with: [inAppPurchase])
+        AppStorePaymentManager.shared.requestProducts(with: [inAppPurchase])
             .receive(on: .main)
-            .observe { [weak self] completion in
-                guard let self = self, let result = completion.unwrappedValue else { return }
-
+            .onComplete { result in
                 switch result {
                 case .success(let response):
                     if let product = response.products.first {
@@ -130,9 +128,10 @@ class AccountViewController: UIViewController, AppStorePaymentObserver, AccountO
                 case .failure(let error):
                     self.didFailLoadingProducts(with: error)
                 }
-
-                self.contentView.purchaseButton.isLoading = false
-                self.purchaseButtonInteractionRestriction.decrease(animated: true)
+            }
+            .observe { [weak self] completion in
+                self?.contentView.purchaseButton.isLoading = false
+                self?.purchaseButtonInteractionRestriction.decrease(animated: true)
             }
     }
 
@@ -284,43 +283,46 @@ class AccountViewController: UIViewController, AppStorePaymentObserver, AccountO
         let alertController = UIAlertController(
             title: nil,
             message: message,
-            preferredStyle: .alert)
+            preferredStyle: .alert
+        )
 
         alertPresenter.enqueue(alertController, presentingController: self) {
-            Account.shared.logout { (result) in
-                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
-                    alertController.dismiss(animated: true) {
-                        switch result {
-                        case .failure(let error):
-                            self.logger.error(chainedError: error, message: "Failed to log out")
-
-                            let errorAlertController = UIAlertController(
-                                title: NSLocalizedString(
-                                    "LOGOUT_FAILURE_ALERT_TITLE",
-                                    tableName: "Account",
-                                    value: "Failed to log out",
-                                    comment: "Title for logout failure alert"
-                                ),
-                                message: error.errorChainDescription,
-                                preferredStyle: .alert
-                            )
-                            errorAlertController.addAction(
-                                UIAlertAction(title: NSLocalizedString(
-                                    "LOGOUT_FAILURE_ALERT_OK_ACTION",
-                                    tableName: "Account",
-                                    value: "OK",
-                                    comment: "Message for logout failure alert"
-                                ), style: .cancel)
-                            )
-                            self.alertPresenter.enqueue(errorAlertController, presentingController: self)
-
-                        case .success:
-                            self.delegate?.accountViewControllerDidLogout(self)
-                        }
-                    }
+            Account.shared.logout()
+                .receive(on: .main, after: .seconds(1), timerType: .deadline)
+                .onSuccess { _ in
+                    self.delegate?.accountViewControllerDidLogout(self)
+                    return
                 }
-            }
+                .onFailure { error in
+                    self.logger.error(chainedError: error, message: "Failed to log out")
+
+                    self.showLogoutFailure(error)
+                    return
+                }
+                .observe { _ in }
         }
+    }
+
+    private func showLogoutFailure(_ error: Account.Error) {
+        let errorAlertController = UIAlertController(
+            title: NSLocalizedString(
+                "LOGOUT_FAILURE_ALERT_TITLE",
+                tableName: "Account",
+                value: "Failed to log out",
+                comment: "Title for logout failure alert"
+            ),
+            message: error.errorChainDescription,
+            preferredStyle: .alert
+        )
+        errorAlertController.addAction(
+            UIAlertAction(title: NSLocalizedString(
+                "LOGOUT_FAILURE_ALERT_OK_ACTION",
+                tableName: "Account",
+                value: "OK",
+                comment: "Message for logout failure alert"
+            ), style: .cancel)
+        )
+        self.alertPresenter.enqueue(errorAlertController, presentingController: self)
     }
 
     // MARK: - AccountObserver
@@ -426,7 +428,7 @@ class AccountViewController: UIViewController, AppStorePaymentObserver, AccountO
 
         compoundInteractionRestriction.increase(animated: true)
 
-        _ = AppStorePaymentManager.shared.restorePurchases(for: accountToken)
+        AppStorePaymentManager.shared.restorePurchases(for: accountToken)
             .receive(on: .main)
             .onSuccess { response in
                 self.showTimeAddedConfirmationAlert(with: response, context: .restoration)

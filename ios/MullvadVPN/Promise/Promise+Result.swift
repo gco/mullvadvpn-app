@@ -51,21 +51,28 @@ extension Promise where Value: AnyResult {
         }
     }
 
+    /// Perform action upon completion.
+    func onComplete(_ onResolve: @escaping (Result<Success, Failure>) -> Void) -> Result<Success, Failure>.Promise {
+        return then { anyResult -> Result<Success, Failure> in
+            let result = anyResult.asConcreteType()
+            onResolve(result)
+            return result
+        }
+    }
+
     /// Perform action on success.
-    func onSuccess(_ onResolve: @escaping (Success) -> Void) -> Self {
-        return observe { completion in
-            if case .success(let value) = completion.unwrappedValue?.asConcreteType() {
-                onResolve(value)
-            }
+    func onSuccess(_ onResolve: @escaping (Success) -> Void) -> Result<Success, Failure>.Promise {
+        return map { value -> Success in
+            onResolve(value)
+            return value
         }
     }
 
     /// Perform action on failure.
-    func onFailure(_ onResolve: @escaping (Failure) -> Void) -> Self {
-        return observe { completion in
-            if case .failure(let error) = completion.unwrappedValue?.asConcreteType() {
-                onResolve(error)
-            }
+    func onFailure(_ onResolve: @escaping (Failure) -> Void) -> Result<Success, Failure>.Promise {
+        return mapError { error -> Failure in
+            onResolve(error)
+            return error
         }
     }
 

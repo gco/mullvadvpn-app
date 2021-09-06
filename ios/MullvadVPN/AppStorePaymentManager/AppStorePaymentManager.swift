@@ -231,7 +231,7 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
             return
         }
 
-        _ = sendAppStoreReceipt(accountToken: accountToken, forceRefresh: false)
+        sendAppStoreReceipt(accountToken: accountToken, forceRefresh: false)
             .receive(on: .main)
             .onSuccess { response in
                 self.paymentQueue.finishTransaction(transaction)
@@ -253,6 +253,7 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
                         didFailWithError: error)
                 }
             }
+            .observe { _ in }
     }
 
 }

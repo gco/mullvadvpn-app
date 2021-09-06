@@ -107,10 +107,11 @@ class PreferencesViewController: UITableViewController, TunnelObserver {
     private func saveDNSSettings() {
         guard let dnsSettings = dnsSettings else { return }
 
-        _ = TunnelManager.shared.setDNSSettings(dnsSettings)
+        TunnelManager.shared.setDNSSettings(dnsSettings)
             .onFailure { [weak self] error in
                 self?.logger.error(chainedError: error, message: "Failed to save DNS settings")
             }
+            .observe { _ in }
     }
 
 }
