@@ -56,7 +56,7 @@ extension REST {
                 }
         }
 
-        func getRelays(etag: String?) -> Result<HttpResourceCacheResponse<ServerRelaysResponse>, REST.Error>.Promise {
+        func getRelays(etag: String?) -> Result<ServerRelaysCacheResponse, REST.Error>.Promise {
             var request = makeURLRequest(method: .get, path: "relays")
             if let etag = etag {
                 setETagHeader(etag: etag, request: &request)
@@ -339,9 +339,9 @@ extension REST {
         let expires: Date
     }
 
-    enum HttpResourceCacheResponse<T: Decodable> {
+    enum ServerRelaysCacheResponse {
         case notModified
-        case newContent(_ etag: String?, _ value: T)
+        case newContent(_ etag: String?, _ value: ServerRelaysResponse)
     }
 
     struct WireguardAddressesResponse: Decodable {

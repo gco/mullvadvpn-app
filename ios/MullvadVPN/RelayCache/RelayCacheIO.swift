@@ -72,7 +72,7 @@ extension RelayCache.IO {
         return Result { try Data(contentsOf: fileURL) }
         .mapError { RelayCache.Error.readPrebundledRelays($0) }
         .flatMap { (data) -> Result<RelayCache.CachedRelays, RelayCache.Error> in
-            return Result { try REST.Coding.makeJSONDecoder().decode(ServerRelaysResponse.self, from: data) }
+            return Result { try REST.Coding.makeJSONDecoder().decode(REST.ServerRelaysResponse.self, from: data) }
             .mapError { RelayCache.Error.decodePrebundledRelays($0) }
             .map { (relays) -> RelayCache.CachedRelays in
                 return RelayCache.CachedRelays(
