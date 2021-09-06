@@ -289,15 +289,20 @@ class AccountViewController: UIViewController, AppStorePaymentObserver, AccountO
         alertPresenter.enqueue(alertController, presentingController: self) {
             Account.shared.logout()
                 .receive(on: .main, after: .seconds(1), timerType: .deadline)
+                .then { result in
+                    return Promise { resolver in
+                        alertController.dismiss(animated: true) {
+                            resolver.resolve(value: result)
+                        }
+                    }
+                }
                 .onSuccess { _ in
                     self.delegate?.accountViewControllerDidLogout(self)
-                    return
                 }
                 .onFailure { error in
                     self.logger.error(chainedError: error, message: "Failed to log out")
 
                     self.showLogoutFailure(error)
-                    return
                 }
                 .observe { _ in }
         }
