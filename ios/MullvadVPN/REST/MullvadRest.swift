@@ -151,7 +151,7 @@ class MullvadRest {
 
         let path = "wireguard-keys/".appending(urlEncodedPublicKey)
         var request = makeURLRequest(method: .get, path: path)
-        
+
         setAuthenticationToken(token: token, request: &request)
 
         return dataTaskPromise(request: request)
