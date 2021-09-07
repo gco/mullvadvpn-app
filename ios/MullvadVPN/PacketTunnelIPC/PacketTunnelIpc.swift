@@ -41,6 +41,10 @@ class PacketTunnelIpc {
 
     let session: VPNTunnelProviderSessionProtocol
 
+    init<T: VPNTunnelProviderManagerProtocol>(from tunnelProvider: T) {
+        self.session = tunnelProvider.connection as! VPNTunnelProviderSessionProtocol
+    }
+
     init(session: VPNTunnelProviderSessionProtocol) {
         self.session = session
     }

@@ -618,15 +618,12 @@ class TunnelManager {
         self.tunnelProvider = tunnelProvider
 
         // Set up tunnel IPC
-        let connection = tunnelProvider.connection
-        let session = connection as! VPNTunnelProviderSessionProtocol
-        let tunnelIpc = PacketTunnelIpc(session: session)
-        self.tunnelIpc = tunnelIpc
+        self.tunnelIpc = PacketTunnelIpc(from: tunnelProvider)
 
         // Register for tunnel connection status changes
         unregisterConnectionObserver()
         connectionStatusObserver = NotificationCenter.default
-            .addObserver(forName: .NEVPNStatusDidChange, object: connection, queue: nil) {
+            .addObserver(forName: .NEVPNStatusDidChange, object: tunnelProvider.connection, queue: nil) {
                 [weak self] (notification) in
                 guard let self = self else { return }
 
