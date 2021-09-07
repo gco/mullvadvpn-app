@@ -39,6 +39,7 @@
 		5820675E26E6839900655B05 /* PresentAlertOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675D26E6839900655B05 /* PresentAlertOperation.swift */; };
 		5820676026E75A4D00655B05 /* Promise+Delay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675F26E75A4D00655B05 /* Promise+Delay.swift */; };
 		5820676126E75A4D00655B05 /* Promise+Delay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675F26E75A4D00655B05 /* Promise+Delay.swift */; };
+		5820676226E75D8500655B05 /* REST.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820674D26E6510200655B05 /* REST.swift */; };
 		5823FA5126CA690600283BF8 /* OSLogHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA4F26CA690600283BF8 /* OSLogHandler.swift */; };
 		5823FA5426CE49F700283BF8 /* TunnelObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA5326CE49F600283BF8 /* TunnelObserver.swift */; };
 		5823FA5626CE4A2B00283BF8 /* AnyTunnelObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA5526CE4A2B00283BF8 /* AnyTunnelObserver.swift */; };
@@ -1202,6 +1203,7 @@
 				58B0A2A9238EE6A100BC001D /* RelayConstraints.swift in Sources */,
 				5807E2C2243203D000F5FF30 /* StringTests.swift in Sources */,
 				585DA8A326B14E0D00B8C587 /* ServerRelaysResponse.swift in Sources */,
+				5820676226E75D8500655B05 /* REST.swift in Sources */,
 				5857F23024C843ED00CF6F47 /* ChainedError.swift in Sources */,
 				58E1337B26D2BEDD00CC316B /* Promise+ReceiveOn.swift in Sources */,
 				58A8BE81239FBE62006B74AC /* IPEndpoint.swift in Sources */,
