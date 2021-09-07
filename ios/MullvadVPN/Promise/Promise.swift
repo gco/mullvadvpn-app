@@ -45,9 +45,9 @@ final class Promise<Value> {
 
     deinit {
         switch state {
-        case .resolved, .cancelled:
+        case .resolved, .cancelled, .pending:
             break
-        case .pending, .executing:
+        case .executing:
             preconditionFailure("\(Self.self) is deallocated in \(state) state without being resolved or cancelled.")
         }
     }
