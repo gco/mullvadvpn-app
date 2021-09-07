@@ -57,6 +57,42 @@ class PromiseTests: XCTestCase {
         wait(for: [expect], timeout: 1)
     }
 
+    func testDelay() throws {
+        let expect = expectation(description: "Wait for promise")
+        let queue = DispatchQueue(label: "TestQueue")
+
+        let startDate = Date()
+        Promise.deferred { () -> Int in
+            let elapsed = startDate.timeIntervalSinceNow * -100
+            XCTAssertTrue(elapsed >= 9 && elapsed <= 11)
+            dispatchPrecondition(condition: .onQueue(queue))
+            expect.fulfill()
+            return 1
+        }
+        .delay(by: .milliseconds(100), timerType: .walltime, queue: queue)
+        .observe { _ in }
+
+        wait(for: [expect], timeout: 1)
+    }
+
+    func testDelayCancellation() throws {
+        let expect = expectation(description: "Should never fulfill")
+        expect.isInverted = true
+
+        let promise = Promise.deferred { () -> Int in
+            expect.fulfill()
+            return 1
+        }.delay(by: .milliseconds(100), timerType: .walltime)
+
+        promise.observe { completion in
+            XCTAssertEqual(completion, .cancelled)
+        }
+
+        promise.cancel()
+
+        wait(for: [expect], timeout: 1)
+    }
+
     func testScheduleOn() throws {
         let expect = expectation(description: "Wait for promise")
         let queue = DispatchQueue(label: "TestQueue")
@@ -112,7 +148,9 @@ class PromiseTests: XCTestCase {
             }
 
             DispatchQueue.main.async(execute: work)
-        }.observe { completion in
+        }
+
+        promise.observe { completion in
             XCTAssertEqual(completion, .cancelled)
             completionExpectation.fulfill()
         }
