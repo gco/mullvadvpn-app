@@ -72,9 +72,6 @@ class TunnelManager {
         /// A failure to remove the public WireGuard key
         case removeWireguardKey(REST.Error)
 
-        /// A failure to verify the public WireGuard key
-        case verifyWireguardKey(REST.Error)
-
         var errorDescription: String? {
             switch self {
             case .missingAccount:
@@ -113,8 +110,6 @@ class TunnelManager {
                 return "Failed to replace the WireGuard key on server"
             case .removeWireguardKey:
                 return "Failed to remove the WireGuard key from server"
-            case .verifyWireguardKey:
-                return "Failed to verify the WireGuard key on server"
             }
         }
     }
@@ -433,25 +428,6 @@ class TunnelManager {
             }
             .schedule(on: stateQueue)
             .block(on: tunnelQueue)
-    }
-
-    func verifyPublicKey() -> Result<Bool, Error>.Promise {
-        return Promise.deferred { self.tunnelInfo }
-            .schedule(on: stateQueue)
-            .some(or: .missingAccount)
-            .mapThen { tunnelInfo in
-                return REST.Client.shared.getWireguardKey(token: tunnelInfo.token, publicKey: tunnelInfo.tunnelSettings.interface.publicKey)
-                    .map { _ in
-                        return true
-                    }
-                    .flatMapError { error in
-                        if case .server(.pubKeyNotFound) = error {
-                            return .success(false)
-                        } else {
-                            return .failure(.verifyWireguardKey(error))
-                        }
-                    }
-            }
     }
 
     func regeneratePrivateKey() -> Result<(), Error>.Promise {
