@@ -37,6 +37,8 @@
 		5820675B26E6576800655B05 /* RelayCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675A26E6576800655B05 /* RelayCache.swift */; };
 		5820675C26E6576800655B05 /* RelayCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675A26E6576800655B05 /* RelayCache.swift */; };
 		5820675E26E6839900655B05 /* PresentAlertOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675D26E6839900655B05 /* PresentAlertOperation.swift */; };
+		5820676026E75A4D00655B05 /* Promise+Delay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675F26E75A4D00655B05 /* Promise+Delay.swift */; };
+		5820676126E75A4D00655B05 /* Promise+Delay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820675F26E75A4D00655B05 /* Promise+Delay.swift */; };
 		5823FA5126CA690600283BF8 /* OSLogHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA4F26CA690600283BF8 /* OSLogHandler.swift */; };
 		5823FA5426CE49F700283BF8 /* TunnelObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA5326CE49F600283BF8 /* TunnelObserver.swift */; };
 		5823FA5626CE4A2B00283BF8 /* AnyTunnelObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5823FA5526CE4A2B00283BF8 /* AnyTunnelObserver.swift */; };
@@ -350,6 +352,7 @@
 		5820674F26E6514100655B05 /* HTTP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTP.swift; sourceTree = "<group>"; };
 		5820675A26E6576800655B05 /* RelayCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayCache.swift; sourceTree = "<group>"; };
 		5820675D26E6839900655B05 /* PresentAlertOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresentAlertOperation.swift; sourceTree = "<group>"; };
+		5820675F26E75A4D00655B05 /* Promise+Delay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Promise+Delay.swift"; sourceTree = "<group>"; };
 		5823FA4F26CA690600283BF8 /* OSLogHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OSLogHandler.swift; sourceTree = "<group>"; };
 		5823FA5326CE49F600283BF8 /* TunnelObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelObserver.swift; sourceTree = "<group>"; };
 		5823FA5526CE4A2B00283BF8 /* AnyTunnelObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyTunnelObserver.swift; sourceTree = "<group>"; };
@@ -897,6 +900,7 @@
 				58E1337026D2BE9C00CC316B /* AnyOptional.swift */,
 				58E1337426D2BEC400CC316B /* Promise+Optional.swift */,
 				58E1337826D2BEDD00CC316B /* Promise+ReceiveOn.swift */,
+				5820675F26E75A4D00655B05 /* Promise+Delay.swift */,
 				58E1338026D2BF5C00CC316B /* Promise+Result.swift */,
 				5846226626E0DF960035F7C2 /* Promise+OperationQueue.swift */,
 				5820674826E63EC800655B05 /* Promise+BackgroundTask.swift */,
@@ -1168,6 +1172,7 @@
 				58E1336F26D2BE7500CC316B /* AnyResult.swift in Sources */,
 				5896AE80246ACE79005B36CB /* KeychainClass.swift in Sources */,
 				582AE3132440CA2700E6733A /* AccountTokenInput.swift in Sources */,
+				5820676126E75A4D00655B05 /* Promise+Delay.swift in Sources */,
 				58CAF4EF26025954007C5886 /* SimulatorTunnelProvider.swift in Sources */,
 				58B0A2AA238EE6A900BC001D /* RelaySelector.swift in Sources */,
 				58E1337726D2BEC400CC316B /* Promise+Optional.swift in Sources */,
@@ -1266,6 +1271,7 @@
 				58907D9524D17B4E00CFC3F5 /* DisconnectSplitButton.swift in Sources */,
 				5823FA5426CE49F700283BF8 /* TunnelObserver.swift in Sources */,
 				5888AD87227B17950051EB06 /* SelectLocationViewController.swift in Sources */,
+				5820676026E75A4D00655B05 /* Promise+Delay.swift in Sources */,
 				58E1336926D2BE3700CC316B /* PromiseObserver.swift in Sources */,
 				58293FB3251241B4005D0BB5 /* CustomTextView.swift in Sources */,
 				58F19E35228C15BA00C7710B /* SpinnerActivityIndicatorView.swift in Sources */,
