@@ -19,8 +19,9 @@ class TunnelManager {
 
     /// Operation categories
     private enum OperationCategory {
-        static let tunnel = "TunnelManager.tunnel"
-        static let privateKeyUpdates = "TunnelManager.privateKeyUpdates"
+        static let manipulateTunnelProvider = "TunnelManager.manipulateTunnelProvider"
+        static let changeTunnelSettings = "TunnelManager.changeTunnelSettings"
+        static let notifyTunnelSettingsChange = "TunnelManager.notifyTunnelSettingsChange"
     }
 
     // Switch to stabs on simulator
@@ -122,7 +123,7 @@ class TunnelManager {
                 }
             }
             .schedule(on: stateQueue)
-            .run(on: operationQueue, categories: [OperationCategory.tunnel])
+            .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider, OperationCategory.changeTunnelSettings])
     }
 
     /// Refresh tunnel state.
@@ -189,7 +190,7 @@ class TunnelManager {
             }
         }
         .schedule(on: stateQueue)
-        .run(on: operationQueue, categories: [OperationCategory.tunnel])
+        .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider])
         .onFailure { error in
             self.sendFailureToObservers(error)
         }
@@ -226,7 +227,7 @@ class TunnelManager {
             }
         }
         .schedule(on: stateQueue)
-        .run(on: operationQueue, categories: [OperationCategory.tunnel])
+        .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider])
         .onFailure { error in
             self.sendFailureToObservers(error)
         }
@@ -234,33 +235,7 @@ class TunnelManager {
     }
 
     func reconnectTunnel() {
-        Result<(), Error>.Promise { resolver in
-            guard let tunnelIpc = self.tunnelIpc else {
-                resolver.resolve(value: .success(()))
-                return
-            }
-
-            switch self.tunnelState {
-            case .connected, .reconnecting:
-                tunnelIpc.reloadTunnelSettings()
-                    .onFailure { error in
-                        self.logger.error(chainedError: error, message: "Failed to reconnect the tunnel")
-                    }
-                    .flatMapError { _ in
-                        return .success(())
-                    }
-                    .observe { completion in
-                        resolver.resolve(completion: completion)
-                    }
-            case .pendingReconnect, .connecting, .disconnecting, .disconnected:
-                self.logger.debug("Ignore request to reconnect the tunnel in \(self.tunnelState)")
-
-                resolver.resolve(value: .success(()))
-            }
-        }
-        .schedule(on: stateQueue)
-        .run(on: operationQueue, categories: [OperationCategory.tunnel])
-        .observe { _ in }
+        enqueueTunnelSettingsReload()
     }
 
     func setAccount(accountToken: String) -> Result<(), Error>.Promise {
@@ -280,7 +255,7 @@ class TunnelManager {
             }
             .setOutput(())
             .schedule(on: stateQueue)
-            .run(on: operationQueue, categories: [OperationCategory.tunnel])
+            .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider, OperationCategory.changeTunnelSettings])
     }
 
     /// Remove the account token and remove the active tunnel
@@ -340,7 +315,7 @@ class TunnelManager {
                     }
             }
             .schedule(on: stateQueue)
-            .run(on: operationQueue, categories: [OperationCategory.tunnel])
+            .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider, OperationCategory.changeTunnelSettings])
     }
 
     func regeneratePrivateKey() -> Result<(), Error>.Promise {
@@ -352,24 +327,19 @@ class TunnelManager {
                     .privateKey
                     .publicKeyWithMetadata
 
-                return self.replaceWireguardKeyAndUpdateSettings(accountToken: tunnelInfo.token, oldPublicKey: oldPublicKeyMetadata, newPrivateKey: newPrivateKey)
-                    .mapThen { newTunnelSettings in
-                        self.tunnelInfo?.tunnelSettings = newTunnelSettings
+                return self.replaceWireguardKeyAndUpdateSettings(
+                    accountToken: tunnelInfo.token,
+                    oldPublicKey: oldPublicKeyMetadata,
+                    newPrivateKey: newPrivateKey
+                ).onSuccess { newTunnelSettings in
+                    self.tunnelInfo?.tunnelSettings = newTunnelSettings
 
-                        return self.tunnelIpc.asPromise()
-                            .mapThen(defaultValue: .success(())) { ipc in
-                                return ipc.reloadTunnelSettings()
-                                    .onFailure { error in
-                                        self.logger.error(chainedError: error, message: "Failed to reload tunnel settings after regenerating the key")
-                                    }
-                                    .flatMapError { error in
-                                        return .success(())
-                                    }
-                            }
-                    }
+                    self.enqueueTunnelSettingsReload()
+                }
+                .setOutput(())
             }
             .schedule(on: stateQueue)
-            .run(on: operationQueue, categories: [OperationCategory.privateKeyUpdates])
+            .run(on: operationQueue, categories: [OperationCategory.changeTunnelSettings])
     }
 
     func rotatePrivateKey() -> Result<KeyRotationResult, Error>.Promise {
@@ -393,69 +363,51 @@ class TunnelManager {
                     .publicKeyWithMetadata
 
                 return self.replaceWireguardKeyAndUpdateSettings(accountToken: tunnelInfo.token, oldPublicKey: oldPublicKeyMetadata, newPrivateKey: newPrivateKey)
-                    .mapThen { newTunnelSettings -> Result<(), Error>.Promise in
+                    .onSuccess { newTunnelSettings in
                         self.tunnelInfo?.tunnelSettings = newTunnelSettings
 
-                        return self.tunnelIpc.asPromise()
-                            .mapThen(defaultValue: .success(())) { ipc in
-                                return ipc.reloadTunnelSettings()
-                                    .onFailure { error in
-                                        self.logger.error(chainedError: error, message: "Failed to reload tunnel settings after rotating the key")
-                                    }
-                                    .flatMapError { error in
-                                        return .success(())
-                                    }
-                            }
+                        self.enqueueTunnelSettingsReload()
                     }
                     .map { _ in
                         return KeyRotationResult.finished
                     }
             }
             .schedule(on: stateQueue)
-            .run(on: operationQueue, categories: [OperationCategory.privateKeyUpdates])
+            .run(on: operationQueue, categories: [OperationCategory.changeTunnelSettings])
     }
 
     func setRelayConstraints(_ newConstraints: RelayConstraints) -> Result<(), Error>.Promise {
         return Promise.deferred { self.tunnelInfo }
             .some(or: .missingAccount)
-            .mapThen { tunnelInfo in
-                return self.updateTunnelSettingsAndReloadTunnel(token: tunnelInfo.token) { tunnelSettings in
+            .flatMap { tunnelInfo in
+                return Self.updateTunnelSettings(accountToken: tunnelInfo.token) { tunnelSettings in
                     tunnelSettings.relayConstraints = newConstraints
                 }
             }
+            .onSuccess { newTunnelSettings in
+                self.tunnelInfo?.tunnelSettings = newTunnelSettings
+                self.enqueueTunnelSettingsReload()
+            }
+            .setOutput(())
             .schedule(on: stateQueue)
-            .run(on: operationQueue, categories: [OperationCategory.tunnel])
+            .run(on: operationQueue, categories: [OperationCategory.changeTunnelSettings])
     }
 
     func setDNSSettings(_ newDNSSettings: DNSSettings) -> Result<(), Error>.Promise {
         return Promise.deferred { self.tunnelInfo }
             .some(or: .missingAccount)
-            .mapThen { tunnelInfo in
-                return self.updateTunnelSettingsAndReloadTunnel(token: tunnelInfo.token) { tunnelSettings in
+            .flatMap { tunnelInfo in
+                return Self.updateTunnelSettings(accountToken: tunnelInfo.token) { tunnelSettings in
                     tunnelSettings.interface.dnsSettings = newDNSSettings
                 }
             }
-            .schedule(on: stateQueue)
-            .run(on: operationQueue, categories: [OperationCategory.tunnel])
-    }
-
-    private func updateTunnelSettingsAndReloadTunnel(token: String, block: @escaping (inout TunnelSettings) -> Void) -> Result<(), Error>.Promise {
-        return Self.updateTunnelSettings(accountToken: token, block: block)
-            .asPromise()
-            .mapThen { newTunnelSettings in
+            .onSuccess { newTunnelSettings in
                 self.tunnelInfo?.tunnelSettings = newTunnelSettings
-
-                return self.tunnelIpc.asPromise()
-                    .mapThen(defaultValue: .success(())) { ipc in
-                        return ipc.reloadTunnelSettings()
-                            .onFailure { error in
-                                self.logger.error(chainedError: error, message: "Failed to reload tunnel settings after updating tunnel settings")
-                            }
-                            .flatMapError { error in
-                                return .success(())
-                            }
-                    }
+                self.enqueueTunnelSettingsReload()
             }
+            .setOutput(())
+            .schedule(on: stateQueue)
+            .run(on: operationQueue, categories: [OperationCategory.changeTunnelSettings])
     }
 
     // MARK: - Tunnel observeration
@@ -648,6 +600,7 @@ class TunnelManager {
             .mapError { error in
                 return .pushWireguardKey(error)
             }
+            .receive(on: stateQueue)
             .flatMap { associatedAddresses in
                 return Self.updateTunnelSettings(accountToken: accountToken) { (tunnelSettings) in
                     tunnelSettings.interface.addresses = [
@@ -798,6 +751,18 @@ class TunnelManager {
         }
     }
 
+    private func enqueueTunnelSettingsReload() {
+        stateQueue.async {
+            guard let tunnelProvider = self.tunnelProvider else { return }
+
+            let reloadOperation = NotifyTunnelWhenSettingsChangeOperation(tunnelProvider: tunnelProvider)
+
+            ExclusivityController.shared.addOperation(reloadOperation, categories: [OperationCategory.notifyTunnelSettingsChange])
+
+            self.operationQueue.addOperation(reloadOperation)
+        }
+    }
+
     // MARK: - Private class methods
 
     private class func loadTunnelSettings(accountToken: String) -> Result<TunnelSettingsManager.KeychainEntry, Error> {
@@ -880,7 +845,6 @@ class TunnelManager {
     }
 
 }
-
 
 extension TunnelManager {
     /// Key rotation result.
