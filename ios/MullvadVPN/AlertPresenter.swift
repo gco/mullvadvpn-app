@@ -40,6 +40,10 @@ class AlertPresenter {
         operationQueue.addOperation(operation)
     }
 
+    func cancelAll() {
+        operationQueue.cancelAllOperations()
+    }
+
 }
 
 fileprivate extension UIAlertController {

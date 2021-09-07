@@ -21,14 +21,53 @@ class PresentAlertOperation: AsyncOperation {
         super.init()
     }
 
+    override func cancel() {
+        DispatchQueue.main.async {
+            // Guard against executing cancellation more than once.
+            guard !self.isCancelled else { return }
+
+            // Guard against trying to dismiss the alert when operation hasn't started yet.
+            guard self.isExecuting else { return }
+
+            // Guard against dismissing controller during transition.
+            if !self.alertController.isBeingPresented && !self.alertController.isBeingDismissed {
+                self.dismissAndFinish()
+            }
+
+            // Call super implementation to toggle isCancelled flag
+            super.cancel()
+        }
+    }
+
     override func main() {
         DispatchQueue.main.async {
-            NotificationCenter.default
-                .addObserver(self, selector: #selector(self.alertControllerDidDismiss(_:)),
-                             name: AlertPresenter.alertControllerDidDismissNotification,
-                             object: self.alertController)
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.alertControllerDidDismiss(_:)),
+                name: AlertPresenter.alertControllerDidDismissNotification,
+                object: self.alertController
+            )
 
-            self.presentingController.present(self.alertController, animated: true, completion: self.presentCompletion)
+            self.presentingController.present(self.alertController, animated: true) {
+                self.presentCompletion?()
+
+                // Alert operation was cancelled during transition?
+                if self.isCancelled {
+                    self.dismissAndFinish()
+                }
+            }
+        }
+    }
+
+    private func dismissAndFinish() {
+        NotificationCenter.default.removeObserver(
+            self,
+            name: AlertPresenter.alertControllerDidDismissNotification,
+            object: self.alertController
+        )
+
+        alertController.dismiss(animated: false) {
+            self.finish()
         }
     }
 
