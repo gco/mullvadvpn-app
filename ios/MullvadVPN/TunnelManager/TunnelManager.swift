@@ -14,104 +14,13 @@ import WireGuardKit
 /// A class that provides a convenient interface for VPN tunnels configuration, manipulation and
 /// monitoring.
 class TunnelManager {
+    /// A private key rotation interval (in days)
+    private let keyRotationDaysInterval = 4
 
-    /// An error emitted by all public methods of TunnelManager
-    enum Error: ChainedError {
-        /// Account token is not set
-        case missingAccount
-
-        /// A failure to start the VPN tunnel via system call
-        case startVPNTunnel(Swift.Error)
-
-        /// A failure to load the system VPN configurations created by the app
-        case loadAllVPNConfigurations(Swift.Error)
-
-        /// A failure to save the system VPN configuration
-        case saveVPNConfiguration(Swift.Error)
-
-        /// A failure to reload the system VPN configuration
-        case reloadVPNConfiguration(Swift.Error)
-
-        /// A failure to remove the system VPN configuration
-        case removeVPNConfiguration(Swift.Error)
-
-        /// A failure to perform a recovery (by removing the VPN configuration) when a corrupt
-        /// VPN configuration is detected.
-        case removeInconsistentVPNConfiguration(Swift.Error)
-
-        /// A failure to read tunnel settings
-        case readTunnelSettings(TunnelSettingsManager.Error)
-
-        /// A failure to read relays cache
-        case readRelays(RelayCache.Error)
-
-        /// A failure to find a relay satisfying the given constraints
-        case cannotSatisfyRelayConstraints
-
-        /// A failure to add the tunnel settings
-        case addTunnelSettings(TunnelSettingsManager.Error)
-
-        /// A failure to update the tunnel settings
-        case updateTunnelSettings(TunnelSettingsManager.Error)
-
-        /// A failure to remove the tunnel settings from Keychain
-        case removeTunnelSettings(TunnelSettingsManager.Error)
-
-        /// A failure to migrate tunnel settings
-        case migrateTunnelSettings(TunnelSettingsManager.Error)
-
-        /// Unable to obtain the persistent keychain reference for the tunnel settings
-        case obtainPersistentKeychainReference(TunnelSettingsManager.Error)
-
-        /// A failure to push the public WireGuard key
-        case pushWireguardKey(REST.Error)
-
-        /// A failure to replace the public WireGuard key
-        case replaceWireguardKey(REST.Error)
-
-        /// A failure to remove the public WireGuard key
-        case removeWireguardKey(REST.Error)
-
-        var errorDescription: String? {
-            switch self {
-            case .missingAccount:
-                return "Missing account token"
-            case .startVPNTunnel:
-                return "Failed to start the VPN tunnel"
-            case .loadAllVPNConfigurations:
-                return "Failed to load the system VPN configurations"
-            case .saveVPNConfiguration:
-                return "Failed to save the system VPN configuration"
-            case .reloadVPNConfiguration:
-                return "Failed to reload the system VPN configuration"
-            case .removeVPNConfiguration:
-                return "Failed to remove the system VPN configuration"
-            case .removeInconsistentVPNConfiguration:
-                return "Failed to remove the inconsistent VPN tunnel"
-            case .readTunnelSettings:
-                return "Failed to read the tunnel settings"
-            case .readRelays:
-                return "Failed to read relays"
-            case .cannotSatisfyRelayConstraints:
-                return "Failed to satisfy the relay constraints"
-            case .addTunnelSettings:
-                return "Failed to add the tunnel settings"
-            case .updateTunnelSettings:
-                return "Failed to update the tunnel settings"
-            case .removeTunnelSettings:
-                return "Failed to remove the tunnel settings"
-            case .migrateTunnelSettings:
-                return "Failed to migrate the tunnel settings"
-            case .obtainPersistentKeychainReference:
-                return "Failed to obtain the persistent keychain reference"
-            case .pushWireguardKey:
-                return "Failed to push the WireGuard key to server"
-            case .replaceWireguardKey:
-                return "Failed to replace the WireGuard key on server"
-            case .removeWireguardKey:
-                return "Failed to remove the WireGuard key from server"
-            }
-        }
+    /// Operation categories
+    private enum OperationCategory {
+        static let tunnel = "TunnelManager.tunnel"
+        static let privateKeyUpdates = "TunnelManager.privateKeyUpdates"
     }
 
     // Switch to stabs on simulator
@@ -126,8 +35,12 @@ class TunnelManager {
     // MARK: - Internal variables
 
     private let logger = Logger(label: "TunnelManager")
-    private let stateQueue = DispatchQueue(label: "TunnelManagerStateQueue")
-    private let tunnelQueue = DispatchQueue(label: "TunnelManagerOperationQueue")
+    private let stateQueue = DispatchQueue(label: "TunnelManager.stateQueue")
+    private let operationQueue: OperationQueue = {
+        let operationQueue = OperationQueue()
+        operationQueue.name = "TunnelManager.operationQueue"
+        return operationQueue
+    }()
 
     private var tunnelProvider: TunnelProviderManagerType?
     private var tunnelIpc: PacketTunnelIpc?
@@ -196,7 +109,7 @@ class TunnelManager {
     ///
     /// The given account token is used to ensure that the system tunnel was configured for the same
     /// account. The system tunnel is removed in case of inconsistency.
-    func loadTunnel(accountToken: String?) -> Result<(), TunnelManager.Error>.Promise {
+    func loadTunnel(accountToken: String?) -> Result<(), Error>.Promise {
         return TunnelProviderManagerType.loadAllFromPreferences()
             .receive(on: self.stateQueue)
             .mapError { error in
@@ -209,7 +122,7 @@ class TunnelManager {
                 }
             }
             .schedule(on: stateQueue)
-            .block(on: tunnelQueue)
+            .run(on: operationQueue, categories: [OperationCategory.tunnel])
     }
 
     /// Refresh tunnel state.
@@ -276,7 +189,7 @@ class TunnelManager {
             }
         }
         .schedule(on: stateQueue)
-        .block(on: tunnelQueue)
+        .run(on: operationQueue, categories: [OperationCategory.tunnel])
         .onFailure { error in
             self.sendFailureToObservers(error)
         }
@@ -313,7 +226,7 @@ class TunnelManager {
             }
         }
         .schedule(on: stateQueue)
-        .block(on: tunnelQueue)
+        .run(on: operationQueue, categories: [OperationCategory.tunnel])
         .onFailure { error in
             self.sendFailureToObservers(error)
         }
@@ -346,7 +259,7 @@ class TunnelManager {
             }
         }
         .schedule(on: stateQueue)
-        .block(on: tunnelQueue)
+        .run(on: operationQueue, categories: [OperationCategory.tunnel])
         .observe { _ in }
     }
 
@@ -367,7 +280,7 @@ class TunnelManager {
             }
             .setOutput(())
             .schedule(on: stateQueue)
-            .block(on: tunnelQueue)
+            .run(on: operationQueue, categories: [OperationCategory.tunnel])
     }
 
     /// Remove the account token and remove the active tunnel
@@ -427,7 +340,7 @@ class TunnelManager {
                     }
             }
             .schedule(on: stateQueue)
-            .block(on: tunnelQueue)
+            .run(on: operationQueue, categories: [OperationCategory.tunnel])
     }
 
     func regeneratePrivateKey() -> Result<(), Error>.Promise {
@@ -456,34 +369,77 @@ class TunnelManager {
                     }
             }
             .schedule(on: stateQueue)
-            .block(on: tunnelQueue)
+            .run(on: operationQueue, categories: [OperationCategory.privateKeyUpdates])
+    }
+
+    func rotatePrivateKey() -> Result<KeyRotationResult, Error>.Promise {
+        return Promise.deferred { self.tunnelInfo }
+            .some(or: .missingAccount)
+            .mapThen { tunnelInfo in
+                let creationDate = tunnelInfo.tunnelSettings.interface.privateKey.creationDate
+                let dateComponents = Calendar.current.dateComponents([.day], from: creationDate, to: Date())
+                
+                guard let daysElapsed = dateComponents.day else {
+                    return .failure(.computeDateComponents)
+                }
+
+                guard daysElapsed >= self.keyRotationDaysInterval else {
+                    return .success(.throttled)
+                }
+
+                let newPrivateKey = PrivateKeyWithMetadata()
+                let oldPublicKeyMetadata = tunnelInfo.tunnelSettings.interface
+                    .privateKey
+                    .publicKeyWithMetadata
+
+                return self.replaceWireguardKeyAndUpdateSettings(accountToken: tunnelInfo.token, oldPublicKey: oldPublicKeyMetadata, newPrivateKey: newPrivateKey)
+                    .mapThen { newTunnelSettings -> Result<(), Error>.Promise in
+                        self.tunnelInfo?.tunnelSettings = newTunnelSettings
+
+                        return self.tunnelIpc.asPromise()
+                            .mapThen(defaultValue: .success(())) { ipc in
+                                return ipc.reloadTunnelSettings()
+                                    .onFailure { error in
+                                        self.logger.error(chainedError: error, message: "Failed to reload tunnel settings after rotating the key")
+                                    }
+                                    .flatMapError { error in
+                                        return .success(())
+                                    }
+                            }
+                    }
+                    .map { _ in
+                        return KeyRotationResult.finished
+                    }
+            }
+            .schedule(on: stateQueue)
+            .run(on: operationQueue, categories: [OperationCategory.privateKeyUpdates])
     }
 
     func setRelayConstraints(_ newConstraints: RelayConstraints) -> Result<(), Error>.Promise {
         return Promise.deferred { self.tunnelInfo }
-            .schedule(on: stateQueue)
             .some(or: .missingAccount)
             .mapThen { tunnelInfo in
-                return self.updateTunnelSettings(token: tunnelInfo.token) { tunnelSettings in
+                return self.updateTunnelSettingsAndReloadTunnel(token: tunnelInfo.token) { tunnelSettings in
                     tunnelSettings.relayConstraints = newConstraints
                 }
             }
-            .block(on: tunnelQueue)
+            .schedule(on: stateQueue)
+            .run(on: operationQueue, categories: [OperationCategory.tunnel])
     }
 
-    func setDNSSettings(_ newDNSSettings: DNSSettings) -> Result<(), TunnelManager.Error>.Promise {
+    func setDNSSettings(_ newDNSSettings: DNSSettings) -> Result<(), Error>.Promise {
         return Promise.deferred { self.tunnelInfo }
-            .schedule(on: stateQueue)
             .some(or: .missingAccount)
             .mapThen { tunnelInfo in
-                return self.updateTunnelSettings(token: tunnelInfo.token) { tunnelSettings in
+                return self.updateTunnelSettingsAndReloadTunnel(token: tunnelInfo.token) { tunnelSettings in
                     tunnelSettings.interface.dnsSettings = newDNSSettings
                 }
             }
-            .block(on: tunnelQueue)
+            .schedule(on: stateQueue)
+            .run(on: operationQueue, categories: [OperationCategory.tunnel])
     }
 
-    private func updateTunnelSettings(token: String, block: @escaping (inout TunnelSettings) -> Void) -> Result<(), Error>.Promise {
+    private func updateTunnelSettingsAndReloadTunnel(token: String, block: @escaping (inout TunnelSettings) -> Void) -> Result<(), Error>.Promise {
         return Self.updateTunnelSettings(accountToken: token, block: block)
             .asPromise()
             .mapThen { newTunnelSettings in
@@ -518,7 +474,7 @@ class TunnelManager {
 
     // MARK: - Private methods
 
-    private func initializeManager(accountToken: String?, tunnels: [TunnelProviderManagerType]?, completionHandler: @escaping (Result<(), TunnelManager.Error>) -> Void) {
+    private func initializeManager(accountToken: String?, tunnels: [TunnelProviderManagerType]?, completionHandler: @escaping (Result<(), Error>) -> Void) {
         // Migrate the tunnel settings if needed
         let migrationResult = accountToken.map { self.migrateTunnelSettings(accountToken: $0) }
         switch migrationResult {
@@ -812,9 +768,9 @@ class TunnelManager {
         }
     }
 
-    private func makeTunnelProvider(accountToken: String) -> Result<TunnelProviderManagerType, TunnelManager.Error>.Promise {
+    private func makeTunnelProvider(accountToken: String) -> Result<TunnelProviderManagerType, Error>.Promise {
         return TunnelProviderManagerType.loadAllFromPreferences()
-            .mapError { error -> TunnelManager.Error in
+            .mapError { error -> Error in
                 return .loadAllVPNConfigurations(error)
             }
             .flatMap { tunnels in
@@ -858,7 +814,7 @@ class TunnelManager {
     }
 
     /// Retrieve the existing `TunnelSettings` or create the new ones
-    private class func makeTunnelSettings(accountToken: String) -> Result<TunnelSettings, TunnelManager.Error> {
+    private class func makeTunnelSettings(accountToken: String) -> Result<TunnelSettings, Error> {
         return Self.loadTunnelSettings(accountToken: accountToken)
             .map { $0.tunnelSettings }
             .flatMapError { error in
@@ -926,4 +882,16 @@ class TunnelManager {
         return result
     }
 
+}
+
+
+extension TunnelManager {
+    /// Key rotation result.
+    enum KeyRotationResult {
+        /// Request to rotate the key was throttled.
+        case throttled
+
+        /// New key was generated.
+        case finished
+    }
 }

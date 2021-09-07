@@ -257,6 +257,9 @@ extension TunnelManager.Error: DisplayChainedError {
                 value: "Failed to satisfy relay constraints.",
                 comment: ""
             )
+        case .computeDateComponents:
+            // This error is never displayed anywhere
+            return nil
         }
     }
 }
