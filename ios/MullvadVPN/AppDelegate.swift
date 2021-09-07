@@ -85,12 +85,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
 
         // Load tunnels
-        self.logger?.debug("Load tunnels")
-
         TunnelManager.shared.loadTunnel(accountToken: Account.shared.token)
             .receive(on: .main)
             .onSuccess { _ in
-                self.logger?.debug("Loaded tunnels")
                 self.relayConstraints = TunnelManager.shared.tunnelInfo?.tunnelSettings.relayConstraints
                 self.didFinishInitialization()
             }
@@ -139,24 +136,31 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         logger?.info("Begin background refresh")
 
         RelayCache.Tracker.shared.updateRelays()
-            .observe { completion in
-                let backgroundFetchResult: UIBackgroundFetchResult
-                let updateRelaysResult = completion.unwrappedValue!
-
-                switch updateRelaysResult {
-                case .success(let fetchResult):
-                    switch fetchResult {
-                    case .throttled, .sameContent:
-                        backgroundFetchResult = .noData
-                    case .newContent:
-                        backgroundFetchResult = .newData
-                    }
-                case .failure(let error):
-                    self.logger?.error(chainedError: error, message: "Failed to update relays from background refresh")
-                    backgroundFetchResult = .failed
+            .then { fetchRelaysResult -> Promise<UIBackgroundFetchResult> in
+                if case .failure(let error) = fetchRelaysResult {
+                    self.logger?.error(chainedError: error, message: "Failed to update relays during background refresh")
                 }
 
-                completionHandler(backgroundFetchResult)
+                return TunnelManager.shared.rotatePrivateKey()
+                    .then { rotationResult -> UIBackgroundFetchResult in
+                        if case .failure(let error) = rotationResult {
+                            self.logger?.error(chainedError: error, message: "Failed to rotate the key during background refresh")
+                        }
+
+                        return fetchRelaysResult.backgroundFetchResult.combine(with: rotationResult.backgroundFetchResult)
+                    }
+            }
+            .receive(on: .main)
+            .observe { completion in
+                switch completion {
+                case .finished(let backgroundFetchResult):
+                    self.logger?.info("Finish background refresh with \(backgroundFetchResult)")
+                    completionHandler(backgroundFetchResult)
+
+                case .cancelled:
+                    self.logger?.info("Finish background refresh with cancelled promise")
+                    completionHandler(.failed)
+                }
             }
     }
 
