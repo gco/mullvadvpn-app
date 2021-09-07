@@ -124,6 +124,7 @@ class TunnelManager {
             }
             .schedule(on: stateQueue)
             .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider, OperationCategory.changeTunnelSettings])
+            .requestBackgroundTime(taskName: "TunnelManager.loadAccount")
     }
 
     /// Refresh tunnel state.
@@ -191,6 +192,7 @@ class TunnelManager {
         }
         .schedule(on: stateQueue)
         .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider])
+        .requestBackgroundTime(taskName: "TunnelManager.startTunnel")
         .onFailure { error in
             self.sendFailureToObservers(error)
         }
@@ -228,6 +230,7 @@ class TunnelManager {
         }
         .schedule(on: stateQueue)
         .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider])
+        .requestBackgroundTime(taskName: "TunnelManager.stopTunnel")
         .onFailure { error in
             self.sendFailureToObservers(error)
         }
@@ -256,6 +259,7 @@ class TunnelManager {
             .setOutput(())
             .schedule(on: stateQueue)
             .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider, OperationCategory.changeTunnelSettings])
+            .requestBackgroundTime(taskName: "TunnelManager.setAccount")
     }
 
     /// Remove the account token and remove the active tunnel
@@ -316,6 +320,7 @@ class TunnelManager {
             }
             .schedule(on: stateQueue)
             .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider, OperationCategory.changeTunnelSettings])
+            .requestBackgroundTime(taskName: "TunnelManager.unsetAccount")
     }
 
     func regeneratePrivateKey() -> Result<(), Error>.Promise {
@@ -340,6 +345,7 @@ class TunnelManager {
             }
             .schedule(on: stateQueue)
             .run(on: operationQueue, categories: [OperationCategory.changeTunnelSettings])
+            .requestBackgroundTime(taskName: "TunnelManager.regeneratePrivateKey")
     }
 
     func rotatePrivateKey() -> Result<KeyRotationResult, Error>.Promise {
@@ -374,6 +380,7 @@ class TunnelManager {
             }
             .schedule(on: stateQueue)
             .run(on: operationQueue, categories: [OperationCategory.changeTunnelSettings])
+            .requestBackgroundTime(taskName: "TunnelManager.rotatePrivateKey")
     }
 
     func setRelayConstraints(_ newConstraints: RelayConstraints) -> Result<(), Error>.Promise {
@@ -391,6 +398,7 @@ class TunnelManager {
             .setOutput(())
             .schedule(on: stateQueue)
             .run(on: operationQueue, categories: [OperationCategory.changeTunnelSettings])
+            .requestBackgroundTime(taskName: "TunnelManager.setRelayConstraints")
     }
 
     func setDNSSettings(_ newDNSSettings: DNSSettings) -> Result<(), Error>.Promise {
@@ -408,6 +416,7 @@ class TunnelManager {
             .setOutput(())
             .schedule(on: stateQueue)
             .run(on: operationQueue, categories: [OperationCategory.changeTunnelSettings])
+            .requestBackgroundTime(taskName: "TunnelManager.setDNSSettings")
     }
 
     // MARK: - Tunnel observeration
