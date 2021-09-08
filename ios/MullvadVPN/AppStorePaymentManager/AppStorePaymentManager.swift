@@ -95,7 +95,7 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
     // MARK: - Payment observation
 
     func addPaymentObserver<T: AppStorePaymentObserver>(_ observer: T) {
-        self.observerList.append(AnyAppStorePaymentObserver(observer))
+        observerList.append(AnyAppStorePaymentObserver(observer))
     }
 
     func removePaymentObserver<T: AppStorePaymentObserver>(_ observer: T) {
