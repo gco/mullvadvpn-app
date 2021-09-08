@@ -120,9 +120,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Refresh VPN tunnel state
-        TunnelManager.shared.refreshTunnelState()
-
         // Start periodic relays updates
         RelayCache.Tracker.shared.startPeriodicUpdates()
     }

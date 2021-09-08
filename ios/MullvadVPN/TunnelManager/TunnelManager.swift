@@ -8,6 +8,7 @@
 
 import Foundation
 import NetworkExtension
+import UIKit
 import Logging
 import WireGuardKit
 
@@ -83,7 +84,14 @@ class TunnelManager {
     private var _tunnelInfo: TunnelInfo?
     private var _tunnelState = TunnelState.disconnected
 
-    private init() {}
+    private init() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(refreshTunnelState),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+    }
 
     // MARK: - Public
 
@@ -134,7 +142,7 @@ class TunnelManager {
     /// Refresh tunnel state.
     /// Use this method to update the tunnel state when app transitions from suspended to active
     /// state.
-    func refreshTunnelState() {
+    @objc func refreshTunnelState() {
         stateQueue.async {
             self.updateTunnelState()
         }
