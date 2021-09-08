@@ -15,7 +15,6 @@ class NotifyTunnelWhenSettingsChangeOperation: AsyncOperation {
     private let tunnelProvider: TunnelManager.TunnelProviderManagerType
     private let tunnelIPC: PacketTunnelIpc
     private var statusObserver: NSObjectProtocol?
-    private var senderCancellationToken: PromiseCancellationToken?
 
     init(tunnelProvider: TunnelManager.TunnelProviderManagerType) {
         self.tunnelProvider = tunnelProvider
@@ -57,16 +56,13 @@ class NotifyTunnelWhenSettingsChangeOperation: AsyncOperation {
             completeOperation()
 
         case .connecting, .reasserting:
-            // Wait till transition is completed.
+            // Wait until transition to connected state.
             break
 
         case .connected:
-            tunnelIPC.reloadTunnelSettings()
-                .storeCancellationToken(in: &self.senderCancellationToken)
-                .receive(on: .main)
-                .observe { [weak self] completion in
-                    self?.completeOperation()
-                }
+            tunnelIPC.reloadTunnelSettings { [weak self] result in
+                self?.completeOperation()
+            }
 
         @unknown default:
             break
