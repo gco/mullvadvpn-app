@@ -19,7 +19,7 @@ class TunnelManager {
 
     /// Operation categories
     private enum OperationCategory {
-        static let manipulateTunnelProvider = "TunnelManager.manipulateTunnelProvider"
+        static let manageTunnelProvider = "TunnelManager.manageTunnelProvider"
         static let changeTunnelSettings = "TunnelManager.changeTunnelSettings"
         static let notifyTunnelSettingsChange = "TunnelManager.notifyTunnelSettingsChange"
     }
@@ -123,7 +123,7 @@ class TunnelManager {
                 }
             }
             .schedule(on: stateQueue)
-            .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider, OperationCategory.changeTunnelSettings])
+            .run(on: operationQueue, categories: [OperationCategory.manageTunnelProvider, OperationCategory.changeTunnelSettings])
             .requestBackgroundTime(taskName: "TunnelManager.loadAccount")
     }
 
@@ -191,7 +191,7 @@ class TunnelManager {
             }
         }
         .schedule(on: stateQueue)
-        .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider])
+        .run(on: operationQueue, categories: [OperationCategory.manageTunnelProvider])
         .requestBackgroundTime(taskName: "TunnelManager.startTunnel")
         .onFailure { error in
             self.sendFailureToObservers(error)
@@ -229,7 +229,7 @@ class TunnelManager {
             }
         }
         .schedule(on: stateQueue)
-        .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider])
+        .run(on: operationQueue, categories: [OperationCategory.manageTunnelProvider])
         .requestBackgroundTime(taskName: "TunnelManager.stopTunnel")
         .onFailure { error in
             self.sendFailureToObservers(error)
@@ -258,7 +258,7 @@ class TunnelManager {
             }
             .setOutput(())
             .schedule(on: stateQueue)
-            .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider, OperationCategory.changeTunnelSettings])
+            .run(on: operationQueue, categories: [OperationCategory.manageTunnelProvider, OperationCategory.changeTunnelSettings])
             .requestBackgroundTime(taskName: "TunnelManager.setAccount")
     }
 
@@ -319,7 +319,7 @@ class TunnelManager {
                     }
             }
             .schedule(on: stateQueue)
-            .run(on: operationQueue, categories: [OperationCategory.manipulateTunnelProvider, OperationCategory.changeTunnelSettings])
+            .run(on: operationQueue, categories: [OperationCategory.manageTunnelProvider, OperationCategory.changeTunnelSettings])
             .requestBackgroundTime(taskName: "TunnelManager.unsetAccount")
     }
 
