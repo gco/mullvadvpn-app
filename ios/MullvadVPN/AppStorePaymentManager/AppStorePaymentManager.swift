@@ -147,6 +147,7 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
 
     func restorePurchases(for accountToken: String) -> Result<REST.CreateApplePaymentResponse, AppStorePaymentManager.Error>.Promise {
         return sendAppStoreReceipt(accountToken: accountToken, forceRefresh: true)
+            .requestBackgroundTime(taskName: "AppStorePaymentManager.restorePurchases")
     }
 
     // MARK: - Private methods
@@ -252,6 +253,7 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
                             didFailWithError: error)
                     }
                 }
+                .requestBackgroundTime(taskName: "AppStorePaymentManager.didFinishOrRestorePurchase")
                 .observe { _ in }
         } else {
             observerList.forEach { (observer) in
