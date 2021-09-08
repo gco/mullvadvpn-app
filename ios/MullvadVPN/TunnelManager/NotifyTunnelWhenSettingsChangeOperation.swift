@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import UIKit
 
 /// Operation that notifies Packet Tunnel Provider when tunnel settings change.
 /// This operation waits till the tunnel is connected before sending the IPC message.
@@ -15,16 +16,22 @@ class NotifyTunnelWhenSettingsChangeOperation: AsyncOperation {
     private let tunnelProvider: TunnelManager.TunnelProviderManagerType
     private let tunnelIPC: PacketTunnelIpc
     private var statusObserver: NSObjectProtocol?
+    private var backgroundTask: UIBackgroundTaskIdentifier?
 
-    init(tunnelProvider: TunnelManager.TunnelProviderManagerType) {
-        self.tunnelProvider = tunnelProvider
-
-        let session = tunnelProvider.connection as! VPNTunnelProviderSessionProtocol
-        self.tunnelIPC = PacketTunnelIpc(session: session)
+    init(tunnelProvider aTunnelProvider: TunnelManager.TunnelProviderManagerType) {
+        tunnelProvider = aTunnelProvider
+        tunnelIPC = PacketTunnelIpc(from: aTunnelProvider)
     }
 
     override func main() {
         DispatchQueue.main.async {
+            // Request background execution to complete the task
+            self.backgroundTask = UIApplication.shared
+                .beginBackgroundTask(withName: "TunnelManager.NotifyTunnelWhenSettingsChangeOperation") { [weak self] in
+                    self?.cancel()
+                }
+
+            // Add VPN status observer
             self.statusObserver = NotificationCenter.default
                 .addObserver(forName: .NEVPNStatusDidChange,
                              object: self.tunnelProvider.connection,
@@ -32,18 +39,24 @@ class NotifyTunnelWhenSettingsChangeOperation: AsyncOperation {
                     self?.handleTunnelStatus()
             }
 
+            // Handle current status
             self.handleTunnelStatus()
         }
     }
 
     override func cancel() {
-        DispatchQueue.main.async {
-            // Guard against repeating cancellation
+        // Make sure the call happens on main thread
+        if Thread.isMainThread {
+            // Guard against repeated cancellation
             guard !self.isCancelled else { return }
 
             super.cancel()
 
             self.completeOperation()
+        } else {
+            DispatchQueue.main.async {
+                self.cancel()
+            }
         }
     }
 
@@ -77,5 +90,11 @@ class NotifyTunnelWhenSettingsChangeOperation: AsyncOperation {
         }
 
         finish()
+
+        if let backgroundTask = backgroundTask, backgroundTask != .invalid {
+            UIApplication.shared.endBackgroundTask(backgroundTask)
+
+            self.backgroundTask = nil
+        }
     }
 }
