@@ -133,18 +133,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-        logger?.info("Begin background refresh")
+        logger?.info("Start background refresh")
 
         RelayCache.Tracker.shared.updateRelays()
             .then { fetchRelaysResult -> Promise<UIBackgroundFetchResult> in
-                if case .failure(let error) = fetchRelaysResult {
-                    self.logger?.error(chainedError: error, message: "Failed to update relays during background refresh")
+                switch fetchRelaysResult {
+                case .success(let result):
+                    self.logger?.debug("Finished updating relays in background refresh: \(result)")
+                case .failure(let error):
+                    self.logger?.error(chainedError: error, message: "Failed to update relays in background refresh")
                 }
 
                 return TunnelManager.shared.rotatePrivateKey()
                     .then { rotationResult -> UIBackgroundFetchResult in
-                        if case .failure(let error) = rotationResult {
-                            self.logger?.error(chainedError: error, message: "Failed to rotate the key during background refresh")
+                        switch rotationResult {
+                        case .success(let result):
+                            self.logger?.debug("Finished rotating the key in background refresh: \(result)")
+                        case .failure(let error):
+                            self.logger?.error(chainedError: error, message: "Failed to rotate the key in background refresh")
                         }
 
                         return fetchRelaysResult.backgroundFetchResult.combine(with: rotationResult.backgroundFetchResult)

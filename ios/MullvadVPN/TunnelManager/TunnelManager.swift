@@ -863,11 +863,20 @@ class TunnelManager {
 
 extension TunnelManager {
     /// Key rotation result.
-    enum KeyRotationResult {
+    enum KeyRotationResult: CustomStringConvertible {
         /// Request to rotate the key was throttled.
         case throttled
 
         /// New key was generated.
         case finished
+
+        var description: String {
+            switch self {
+            case .throttled:
+                return "throttled"
+            case .finished:
+                return "finished"
+            }
+        }
     }
 }

@@ -36,7 +36,7 @@ extension RelayCache {
         }
     }
 
-    enum FetchResult {
+    enum FetchResult: CustomStringConvertible {
         /// Request to update relays was throttled.
         case throttled
 
@@ -45,6 +45,17 @@ extension RelayCache {
 
         /// Refreshed relays with new content.
         case newContent
+
+        var description: String {
+            switch self {
+            case .throttled:
+                return "throttled"
+            case .sameContent:
+                return "same content"
+            case .newContent:
+                return "new content"
+            }
+        }
     }
 
     class Tracker {
