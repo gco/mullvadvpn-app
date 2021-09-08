@@ -242,7 +242,7 @@ class TunnelManager {
     }
 
     func reconnectTunnel() {
-        enqueueTunnelSettingsReload()
+        notifyTunnelOnSettingsChange().observe { _ in }
     }
 
     func setAccount(accountToken: String) -> Result<(), Error>.Promise {
@@ -343,7 +343,7 @@ class TunnelManager {
                 ).onSuccess { newTunnelSettings in
                     self.tunnelInfo?.tunnelSettings = newTunnelSettings
 
-                    self.enqueueTunnelSettingsReload()
+                    self.notifyTunnelOnSettingsChange().observe { _ in }
                 }
                 .setOutput(())
             }
@@ -375,11 +375,11 @@ class TunnelManager {
                 return self.replaceWireguardKeyAndUpdateSettings(accountToken: tunnelInfo.token, oldPublicKey: oldPublicKeyMetadata, newPrivateKey: newPrivateKey)
                     .onSuccess { newTunnelSettings in
                         self.tunnelInfo?.tunnelSettings = newTunnelSettings
-
-                        self.enqueueTunnelSettingsReload()
                     }
-                    .map { _ in
-                        return KeyRotationResult.finished
+                    .mapThen { _ in
+                        return self.notifyTunnelOnSettingsChange().then { _ in
+                            return .success(.finished)
+                        }
                     }
             }
             .schedule(on: stateQueue)
@@ -397,7 +397,7 @@ class TunnelManager {
             }
             .onSuccess { newTunnelSettings in
                 self.tunnelInfo?.tunnelSettings = newTunnelSettings
-                self.enqueueTunnelSettingsReload()
+                self.notifyTunnelOnSettingsChange().observe { _ in }
             }
             .setOutput(())
             .schedule(on: stateQueue)
@@ -415,7 +415,7 @@ class TunnelManager {
             }
             .onSuccess { newTunnelSettings in
                 self.tunnelInfo?.tunnelSettings = newTunnelSettings
-                self.enqueueTunnelSettingsReload()
+                self.notifyTunnelOnSettingsChange().observe { _ in }
             }
             .setOutput(())
             .schedule(on: stateQueue)
@@ -766,16 +766,83 @@ class TunnelManager {
         }
     }
 
-    private func enqueueTunnelSettingsReload() {
-        stateQueue.async {
-            guard let tunnelProvider = self.tunnelProvider else { return }
-
-            let reloadOperation = NotifyTunnelWhenSettingsChangeOperation(tunnelProvider: tunnelProvider)
-
-            ExclusivityController.shared.addOperation(reloadOperation, categories: [OperationCategory.notifyTunnelSettingsChange])
-
-            self.operationQueue.addOperation(reloadOperation)
+    private func notifyTunnelOnSettingsChange() -> Promise<Void> {
+        return Promise.deferred { () -> (PacketTunnelIpc, TunnelProviderManagerType)? in
+            if let tunnelIpc = self.tunnelIpc, let tunnelProvider = self.tunnelProvider {
+                return (tunnelIpc, tunnelProvider)
+            } else {
+                return nil
+            }
         }
+        .mapThen(defaultValue: ()) { (ipc, tunnelProvider) in
+            return Promise { resolver in
+                let connection = tunnelProvider.connection
+                var statusObserver: NSObjectProtocol?
+                var ipcToken: PromiseCancellationToken?
+
+                let releaseObserver = {
+                    if let statusObserver = statusObserver {
+                        NotificationCenter.default.removeObserver(statusObserver)
+                    }
+                }
+
+                let handleStatus = {
+                    switch connection.status {
+                    case .connected:
+                        releaseObserver()
+
+                        ipc.reloadTunnelSettings()
+                            .storeCancellationToken(in: &ipcToken)
+                            .observe { completion in
+                                switch completion {
+                                case .finished(let result):
+                                    if case .failure(let error) = result {
+                                        self.logger.error(chainedError: error, message: "Failed to send IPC request to reload tunnel settings")
+                                    }
+                                    resolver.resolve(value: ())
+                                case .cancelled:
+                                    resolver.resolve(completion: .cancelled)
+                                }
+                            }
+
+                    case .connecting, .reasserting:
+                        // wait for transition to complete
+                        break
+
+                    case .invalid, .disconnecting, .disconnected:
+                        releaseObserver()
+                        resolver.resolve(value: ())
+
+                    @unknown default:
+                        break
+                    }
+                }
+
+                // Add connection status observer
+                statusObserver = NotificationCenter.default.addObserver(
+                    forName: .NEVPNStatusDidChange,
+                    object: connection,
+                    queue: .main) { note in
+                        handleStatus()
+                    }
+
+                // Set cancellation handler
+                resolver.setCancelHandler {
+                    DispatchQueue.main.async {
+                        releaseObserver()
+                        ipcToken = nil
+                    }
+                }
+
+                // Run initial check
+                DispatchQueue.main.async {
+                    handleStatus()
+                }
+            }
+        }
+        .schedule(on: stateQueue)
+        .run(on: operationQueue, categories: [OperationCategory.notifyTunnelSettingsChange])
+        .requestBackgroundTime(taskName: "TunnelManager.notifyTunnelOnSettingsChange")
     }
 
     // MARK: - Private class methods
