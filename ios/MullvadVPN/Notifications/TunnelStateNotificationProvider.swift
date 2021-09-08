@@ -67,13 +67,11 @@ class TunnelStateNotificationProvider: NotificationProvider, InAppNotificationPr
     }
 
     func tunnelManager(_ manager: TunnelManager, didUpdateTunnelState tunnelState: TunnelState) {
-        DispatchQueue.main.async {
-            if case .connecting = tunnelState {
-                self.lastError = nil
-            }
-            self.tunnelState = tunnelState
-            self.invalidate()
+        if case .connecting = tunnelState {
+            self.lastError = nil
         }
+        self.tunnelState = tunnelState
+        self.invalidate()
     }
 
     func tunnelManager(_ manager: TunnelManager, didUpdateTunnelSettings tunnelSettings: TunnelSettings?, accountToken: String?) {
@@ -81,10 +79,8 @@ class TunnelStateNotificationProvider: NotificationProvider, InAppNotificationPr
     }
 
     func tunnelManager(_ manager: TunnelManager, didFailWithError error: TunnelManager.Error) {
-        DispatchQueue.main.async {
-            self.lastError = error
-            self.invalidate()
-        }
+        self.lastError = error
+        self.invalidate()
     }
 
 

@@ -147,9 +147,7 @@ class ConnectViewController: UIViewController, MKMapViewDelegate, RootContainmen
     }
 
     func tunnelManager(_ manager: TunnelManager, didUpdateTunnelState tunnelState: TunnelState) {
-        DispatchQueue.main.async {
-            self.tunnelState = tunnelState
-        }
+        self.tunnelState = tunnelState
     }
 
     func tunnelManager(_ manager: TunnelManager, didFailWithError error: TunnelManager.Error) {

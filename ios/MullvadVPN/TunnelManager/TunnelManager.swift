@@ -66,8 +66,10 @@ class TunnelManager {
             stateLock.withCriticalBlock {
                 _tunnelInfo = newValue
 
-                observerList.forEach { (observer) in
-                    observer.tunnelManager(self, didUpdateTunnelSettings: newValue?.tunnelSettings, accountToken: newValue?.token)
+                DispatchQueue.main.async {
+                    self.observerList.forEach { (observer) in
+                        observer.tunnelManager(self, didUpdateTunnelSettings: newValue?.tunnelSettings, accountToken: newValue?.token)
+                    }
                 }
             }
         }
@@ -94,8 +96,10 @@ class TunnelManager {
 
                 _tunnelState = newValue
 
-                observerList.forEach { (observer) in
-                    observer.tunnelManager(self, didUpdateTunnelState: newValue)
+                DispatchQueue.main.async {
+                    self.observerList.forEach { (observer) in
+                        observer.tunnelManager(self, didUpdateTunnelState: newValue)
+                    }
                 }
             }
         }
@@ -755,8 +759,10 @@ class TunnelManager {
     }
 
     private func sendFailureToObservers(_ failure: Error) {
-        self.observerList.forEach { observer in
-            observer.tunnelManager(self, didFailWithError: failure)
+        DispatchQueue.main.async {
+            self.observerList.forEach { observer in
+                observer.tunnelManager(self, didFailWithError: failure)
+            }
         }
     }
 

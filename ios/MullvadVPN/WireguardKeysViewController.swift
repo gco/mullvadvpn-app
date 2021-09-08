@@ -102,9 +102,7 @@ class WireguardKeysViewController: UIViewController, TunnelObserver {
     }
 
     func tunnelManager(_ manager: TunnelManager, didUpdateTunnelSettings tunnelSettings: TunnelSettings?, accountToken: String?) {
-        DispatchQueue.main.async {
-            self.updatePublicKey(tunnelSettings: tunnelSettings, animated: true)
-        }
+        self.updatePublicKey(tunnelSettings: tunnelSettings, animated: true)
     }
 
     func tunnelManager(_ manager: TunnelManager, didFailWithError error: TunnelManager.Error) {
