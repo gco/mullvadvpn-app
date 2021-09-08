@@ -285,6 +285,7 @@
 		58FAEE0224533ABB00CB0F5B /* KeychainMatchLimit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FAEDFC24533A5500CB0F5B /* KeychainMatchLimit.swift */; };
 		58FAEE0324533ABE00CB0F5B /* KeychainReturn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FAEDFE24533A7000CB0F5B /* KeychainReturn.swift */; };
 		58FAEE0424533AC000CB0F5B /* KeychainClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FAEE0024533A9C00CB0F5B /* KeychainClass.swift */; };
+		58FB865526E8BF3100F188BC /* AppStorePaymentManagerError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FB865426E8BF3100F188BC /* AppStorePaymentManagerError.swift */; };
 		58FD5BE724192A2C00112C88 /* AppStoreReceipt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FD5BE624192A2B00112C88 /* AppStoreReceipt.swift */; };
 		58FD5BF024238EB300112C88 /* SKProduct+Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FD5BEF24238EB300112C88 /* SKProduct+Formatting.swift */; };
 		58FD5BF22424F7D700112C88 /* UserInterfaceInteractionRestriction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FD5BF12424F7D700112C88 /* UserInterfaceInteractionRestriction.swift */; };
@@ -532,6 +533,7 @@
 		58FAEDFC24533A5500CB0F5B /* KeychainMatchLimit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainMatchLimit.swift; sourceTree = "<group>"; };
 		58FAEDFE24533A7000CB0F5B /* KeychainReturn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainReturn.swift; sourceTree = "<group>"; };
 		58FAEE0024533A9C00CB0F5B /* KeychainClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainClass.swift; sourceTree = "<group>"; };
+		58FB865426E8BF3100F188BC /* AppStorePaymentManagerError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStorePaymentManagerError.swift; sourceTree = "<group>"; };
 		58FD5BE624192A2B00112C88 /* AppStoreReceipt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreReceipt.swift; sourceTree = "<group>"; };
 		58FD5BEF24238EB300112C88 /* SKProduct+Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SKProduct+Formatting.swift"; sourceTree = "<group>"; };
 		58FD5BF12424F7D700112C88 /* UserInterfaceInteractionRestriction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserInterfaceInteractionRestriction.swift; sourceTree = "<group>"; };
@@ -659,11 +661,12 @@
 		5846226F26E229CD0035F7C2 /* AppStorePaymentManager */ = {
 			isa = PBXGroup;
 			children = (
-				58DF28A42417CB4B00E836B0 /* AppStorePaymentManager.swift */,
-				5846227026E229F20035F7C2 /* AppStoreSubscription.swift */,
-				5846227226E22A160035F7C2 /* AppStorePaymentObserver.swift */,
 				5846227426E22A350035F7C2 /* AnyAppStorePaymentObserver.swift */,
+				58DF28A42417CB4B00E836B0 /* AppStorePaymentManager.swift */,
 				5846227626E22A7C0035F7C2 /* AppStorePaymentManagerDelegate.swift */,
+				58FB865426E8BF3100F188BC /* AppStorePaymentManagerError.swift */,
+				5846227226E22A160035F7C2 /* AppStorePaymentObserver.swift */,
+				5846227026E229F20035F7C2 /* AppStoreSubscription.swift */,
 			);
 			path = AppStorePaymentManager;
 			sourceTree = "<group>";
@@ -1346,6 +1349,7 @@
 				58AEEF652344A36000C9BBD5 /* KeychainError.swift in Sources */,
 				581503A624D6F4AE00C9C50E /* Logging.swift in Sources */,
 				58CCA01222424D11004F3011 /* SettingsViewController.swift in Sources */,
+				58FB865526E8BF3100F188BC /* AppStorePaymentManagerError.swift in Sources */,
 				58FD5BF42428C67600112C88 /* InAppPurchaseButton.swift in Sources */,
 				580EE22424B3243100F9D8A1 /* AsyncBlockOperation.swift in Sources */,
 				58293FAE2510CA58005D0BB5 /* ProblemReportViewController.swift in Sources */,

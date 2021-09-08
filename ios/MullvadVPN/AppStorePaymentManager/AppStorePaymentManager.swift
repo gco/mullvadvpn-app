@@ -17,26 +17,6 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
         static let productsRequest = "AppStorePaymentManager.productsRequest"
     }
 
-    enum Error: ChainedError {
-        case noAccountSet
-        case storePayment(Swift.Error)
-        case readReceipt(AppStoreReceipt.Error)
-        case sendReceipt(REST.Error)
-
-        var errorDescription: String? {
-            switch self {
-            case .noAccountSet:
-                return "Account is not set"
-            case .storePayment:
-                return "Store payment error"
-            case .readReceipt:
-                return "Read recept error"
-            case .sendReceipt:
-                return "Send receipt error"
-            }
-        }
-    }
-
     /// A shared instance of `AppStorePaymentManager`
     static let shared = AppStorePaymentManager(queue: SKPaymentQueue.default())
 
@@ -49,20 +29,26 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
     }()
 
     private let paymentQueue: SKPaymentQueue
-
     private var observerList = ObserverList<AnyAppStorePaymentObserver>()
-    private let lock = NSRecursiveLock()
 
     private weak var classDelegate: AppStorePaymentManagerDelegate?
     weak var delegate: AppStorePaymentManagerDelegate? {
         get {
-            lock.withCriticalBlock {
+            if Thread.isMainThread {
                 return classDelegate
+            } else {
+                return DispatchQueue.main.sync {
+                    return classDelegate
+                }
             }
         }
         set {
-            lock.withCriticalBlock {
+            if Thread.isMainThread {
                 classDelegate = newValue
+            } else {
+                DispatchQueue.main.async {
+                    self.classDelegate = newValue
+                }
             }
         }
     }
@@ -107,26 +93,6 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
         observerList.remove(AnyAppStorePaymentObserver(observer))
     }
 
-    // MARK: - Account token and payment mapping
-
-    private func associateAccountToken(_ token: String, and payment: SKPayment) {
-        lock.withCriticalBlock {
-            paymentToAccountToken[payment] = token
-        }
-    }
-
-    private func deassociateAccountToken(_ payment: SKPayment) -> String? {
-        return lock.withCriticalBlock {
-            if let accountToken = paymentToAccountToken[payment] {
-                paymentToAccountToken.removeValue(forKey: payment)
-                return accountToken
-            } else {
-                return self.classDelegate?
-                    .appStorePaymentManager(self, didRequestAccountTokenFor: payment)
-            }
-        }
-    }
-
     // MARK: - Products and payments
 
     func requestProducts(with productIdentifiers: Set<AppStoreSubscription>) -> Result<SKProductsResponse, Swift.Error>.Promise {
@@ -141,8 +107,13 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
     }
 
     func addPayment(_ payment: SKPayment, for accountToken: String) {
-        associateAccountToken(accountToken, and: payment)
-        paymentQueue.add(payment)
+        if Thread.isMainThread {
+            _addPayment(payment, for: accountToken)
+        } else {
+            DispatchQueue.main.async {
+                self._addPayment(payment, for: accountToken)
+            }
+        }
     }
 
     func restorePurchases(for accountToken: String) -> Result<REST.CreateApplePaymentResponse, AppStorePaymentManager.Error>.Promise {
@@ -150,7 +121,32 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
             .requestBackgroundTime(taskName: "AppStorePaymentManager.restorePurchases")
     }
 
+
     // MARK: - Private methods
+
+    private func associateAccountToken(_ token: String, and payment: SKPayment) {
+        assert(Thread.isMainThread)
+
+        paymentToAccountToken[payment] = token
+    }
+
+    private func deassociateAccountToken(_ payment: SKPayment) -> String? {
+        assert(Thread.isMainThread)
+
+        if let accountToken = paymentToAccountToken[payment] {
+            paymentToAccountToken.removeValue(forKey: payment)
+            return accountToken
+        } else {
+            return classDelegate?.appStorePaymentManager(self, didRequestAccountTokenFor: payment)
+        }
+    }
+
+    private func _addPayment(_ payment: SKPayment, for accountToken: String) {
+        assert(Thread.isMainThread)
+
+        associateAccountToken(accountToken, and: payment)
+        paymentQueue.add(payment)
+    }
 
     private func sendAppStoreReceipt(accountToken: String, forceRefresh: Bool) -> Result<REST.CreateApplePaymentResponse, Error>.Promise {
         return AppStoreReceipt.fetch(forceRefresh: forceRefresh)
