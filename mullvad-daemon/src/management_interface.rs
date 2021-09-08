@@ -253,7 +253,8 @@ impl ManagementService for ManagementServiceImpl {
     }
 
     async fn set_bridge_state(&self, request: Request<types::BridgeState>) -> ServiceResult<()> {
-        let bridge_state = BridgeState::try_from(request.into_inner()).map_err(map_daemon_error)?;
+        let bridge_state =
+            BridgeState::try_from(request.into_inner()).map_err(map_protobuf_type_err)?;
 
         log::debug!("set_bridge_state({:?})", bridge_state);
         let (tx, rx) = oneshot::channel();
@@ -364,7 +365,7 @@ impl ManagementService for ManagementServiceImpl {
 
     #[cfg(not(target_os = "android"))]
     async fn set_dns_options(&self, request: Request<types::DnsOptions>) -> ServiceResult<()> {
-        let options = DnsOptions::try_from(request.into_inner()).map_err(map_daemon_error)?;
+        let options = DnsOptions::try_from(request.into_inner()).map_err(map_protobuf_type_err)?;
         log::debug!("set_dns_options({:?})", options);
 
         let (tx, rx) = oneshot::channel();
