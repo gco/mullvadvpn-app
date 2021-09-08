@@ -49,15 +49,9 @@ class PacketTunnelIpc {
         self.session = session
     }
 
-    func reloadTunnelSettings(completionHandler: @escaping (Result<(), Error>) -> Void) {
-        self.send(message: .reloadTunnelSettings) { result in
-            completionHandler(result)
-        }
-    }
-
     func reloadTunnelSettings() -> Result<(), Error>.Promise {
         return Result<(), Error>.Promise { resolver in
-            self.reloadTunnelSettings { result in
+            self.send(message: .reloadTunnelSettings) { result in
                 resolver.resolve(value: result)
             }
         }
