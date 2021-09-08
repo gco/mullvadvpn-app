@@ -87,8 +87,13 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
     // MARK: - SKPaymentTransactionObserver
 
     func paymentQueue(_ queue: SKPaymentQueue, updatedTransactions transactions: [SKPaymentTransaction]) {
-        for transaction in transactions {
-            self.handleTransaction(transaction)
+        // Ensure that all calls happen on main queue
+        if Thread.isMainThread {
+            handleTransactions(transactions)
+        } else {
+            DispatchQueue.main.async {
+                self.handleTransactions(transactions)
+            }
         }
     }
 
@@ -167,6 +172,12 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
             .run(on: operationQueue, categories: [OperationCategory.sendAppStoreReceipt])
     }
 
+    private func handleTransactions(_ transactions: [SKPaymentTransaction]) {
+        transactions.forEach { transaction in
+            handleTransaction(transaction)
+        }
+    }
+
     private func handleTransaction(_ transaction: SKPaymentTransaction) {
         switch transaction.transactionState {
         case .deferred:
@@ -198,7 +209,15 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
     private func didFailPurchase(transaction: SKPaymentTransaction) {
         paymentQueue.finishTransaction(transaction)
 
-        guard let accountToken = deassociateAccountToken(transaction.payment) else {
+        if let accountToken = deassociateAccountToken(transaction.payment) {
+            observerList.forEach { (observer) in
+                observer.appStorePaymentManager(
+                    self,
+                    transaction: transaction,
+                    accountToken: accountToken,
+                    didFailWithError: .storePayment(transaction.error!))
+            }
+        } else {
             observerList.forEach { (observer) in
                 observer.appStorePaymentManager(
                     self,
@@ -206,21 +225,35 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
                     accountToken: nil,
                     didFailWithError: .noAccountSet)
             }
-            return
         }
-
-        observerList.forEach { (observer) in
-            observer.appStorePaymentManager(
-                self,
-                transaction: transaction,
-                accountToken: accountToken,
-                didFailWithError: .storePayment(transaction.error!))
-        }
-
     }
 
     private func didFinishOrRestorePurchase(transaction: SKPaymentTransaction) {
-        guard let accountToken = deassociateAccountToken(transaction.payment) else {
+        if let accountToken = deassociateAccountToken(transaction.payment) {
+            sendAppStoreReceipt(accountToken: accountToken, forceRefresh: false)
+                .receive(on: .main)
+                .onSuccess { response in
+                    self.paymentQueue.finishTransaction(transaction)
+
+                    self.observerList.forEach { (observer) in
+                        observer.appStorePaymentManager(
+                            self,
+                            transaction: transaction,
+                            accountToken: accountToken,
+                            didFinishWithResponse: response)
+                    }
+                }
+                .onFailure { error in
+                    self.observerList.forEach { (observer) in
+                        observer.appStorePaymentManager(
+                            self,
+                            transaction: transaction,
+                            accountToken: accountToken,
+                            didFailWithError: error)
+                    }
+                }
+                .observe { _ in }
+        } else {
             observerList.forEach { (observer) in
                 observer.appStorePaymentManager(
                     self,
@@ -228,32 +261,7 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
                     accountToken: nil,
                     didFailWithError: .noAccountSet)
             }
-            return
         }
-
-        sendAppStoreReceipt(accountToken: accountToken, forceRefresh: false)
-            .receive(on: .main)
-            .onSuccess { response in
-                self.paymentQueue.finishTransaction(transaction)
-
-                self.observerList.forEach { (observer) in
-                    observer.appStorePaymentManager(
-                        self,
-                        transaction: transaction,
-                        accountToken: accountToken,
-                        didFinishWithResponse: response)
-                }
-            }
-            .onFailure { error in
-                self.observerList.forEach { (observer) in
-                    observer.appStorePaymentManager(
-                        self,
-                        transaction: transaction,
-                        accountToken: accountToken,
-                        didFailWithError: error)
-                }
-            }
-            .observe { _ in }
     }
 
 }

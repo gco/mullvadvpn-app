@@ -245,20 +245,16 @@ extension Account: AppStorePaymentObserver {
     }
 
     func appStorePaymentManager(_ manager: AppStorePaymentManager, transaction: SKPaymentTransaction, accountToken: String, didFinishWithResponse response: REST.CreateApplePaymentResponse) {
-        Promise.deferred { response }
-            .schedule(on: .main)
-            .then { response in
-                let newExpiry = response.newExpiry
+        dispatchQueue.async {
+            let newExpiry = response.newExpiry
 
-                // Make sure that payment corresponds to the active account token
-                if self.token == accountToken, self.expiry != newExpiry {
-                    self.expiry = newExpiry
-                    self.observerList.forEach { (observer) in
-                        observer.account(self, didUpdateExpiry: newExpiry)
-                    }
+            // Make sure that payment corresponds to the active account token
+            if self.token == accountToken, self.expiry != newExpiry {
+                self.expiry = newExpiry
+                self.observerList.forEach { (observer) in
+                    observer.account(self, didUpdateExpiry: newExpiry)
                 }
             }
-            .block(on: dispatchQueue)
-            .observe { _ in }
+        }
     }
 }
