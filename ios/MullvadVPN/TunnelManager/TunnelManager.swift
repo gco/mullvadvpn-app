@@ -122,7 +122,7 @@ class TunnelManager {
     ///
     /// The given account token is used to ensure that the system tunnel was configured for the same
     /// account. The system tunnel is removed in case of inconsistency.
-    func loadTunnel(accountToken: String?) -> Result<(), Error>.Promise {
+    func loadTunnel(accountToken: String?) -> Result<(), TunnelManager.Error>.Promise {
         return TunnelProviderManagerType.loadAllFromPreferences()
             .receive(on: self.stateQueue)
             .mapError { error in
@@ -149,7 +149,7 @@ class TunnelManager {
     }
 
     func startTunnel() {
-        Result<(), Error>.Promise { resolver in
+        Result<(), TunnelManager.Error>.Promise { resolver in
             guard let tunnelInfo = self.tunnelInfo else {
                 resolver.resolve(value: .failure(.missingAccount))
                 return
@@ -253,7 +253,7 @@ class TunnelManager {
         notifyTunnelOnSettingsChange().observe { _ in }
     }
 
-    func setAccount(accountToken: String) -> Result<(), Error>.Promise {
+    func setAccount(accountToken: String) -> Result<(), TunnelManager.Error>.Promise {
         return Promise.deferred { Self.makeTunnelSettings(accountToken: accountToken) }
             .mapThen { tunnelSettings -> Result<TunnelSettings, Error>.Promise in
                 let interfaceSettings = tunnelSettings.interface
@@ -275,7 +275,7 @@ class TunnelManager {
     }
 
     /// Remove the account token and remove the active tunnel
-    func unsetAccount() ->  Result<(), Error>.Promise {
+    func unsetAccount() ->  Result<(), TunnelManager.Error>.Promise {
         return Promise.deferred { self.tunnelInfo }
             .some(or: Error.missingAccount)
             .mapThen { tunnelInfo in
@@ -335,7 +335,7 @@ class TunnelManager {
             .requestBackgroundTime(taskName: "TunnelManager.unsetAccount")
     }
 
-    func regeneratePrivateKey() -> Result<(), Error>.Promise {
+    func regeneratePrivateKey() -> Result<(), TunnelManager.Error>.Promise {
         return Promise.deferred { self.tunnelInfo }
             .some(or: .missingAccount)
             .mapThen { tunnelInfo in
@@ -360,7 +360,7 @@ class TunnelManager {
             .requestBackgroundTime(taskName: "TunnelManager.regeneratePrivateKey")
     }
 
-    func rotatePrivateKey() -> Result<KeyRotationResult, Error>.Promise {
+    func rotatePrivateKey() -> Result<KeyRotationResult, TunnelManager.Error>.Promise {
         return Promise.deferred { self.tunnelInfo }
             .some(or: .missingAccount)
             .mapThen { tunnelInfo in
@@ -395,7 +395,7 @@ class TunnelManager {
             .requestBackgroundTime(taskName: "TunnelManager.rotatePrivateKey")
     }
 
-    func setRelayConstraints(_ newConstraints: RelayConstraints) -> Result<(), Error>.Promise {
+    func setRelayConstraints(_ newConstraints: RelayConstraints) -> Result<(), TunnelManager.Error>.Promise {
         return Promise.deferred { self.tunnelInfo }
             .some(or: .missingAccount)
             .flatMap { tunnelInfo in
@@ -413,7 +413,7 @@ class TunnelManager {
             .requestBackgroundTime(taskName: "TunnelManager.setRelayConstraints")
     }
 
-    func setDNSSettings(_ newDNSSettings: DNSSettings) -> Result<(), Error>.Promise {
+    func setDNSSettings(_ newDNSSettings: DNSSettings) -> Result<(), TunnelManager.Error>.Promise {
         return Promise.deferred { self.tunnelInfo }
             .some(or: .missingAccount)
             .flatMap { tunnelInfo in
