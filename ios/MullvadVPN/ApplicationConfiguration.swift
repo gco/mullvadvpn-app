@@ -39,5 +39,11 @@ extension ApplicationConfiguration {
     }
 
     /// Background fetch minimum interval
-    static var minimumBackgroundFetchInterval: TimeInterval = 3600
+    static let minimumBackgroundFetchInterval: TimeInterval = 3600
+
+    /// App refresh background task identifier
+    static let appRefreshTaskIdentifier = "net.mullvad.MullvadVPN.AppRefresh"
+
+    /// Key rotation background task identifier
+    static let keyRotationTaskIdentifier = "net.mullvad.MullvadVPN.KeyRotation"
 }

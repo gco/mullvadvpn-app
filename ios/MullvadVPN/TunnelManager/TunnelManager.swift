@@ -6,6 +6,7 @@
 //  Copyright © 2019 Mullvad VPN AB. All rights reserved.
 //
 
+import BackgroundTasks
 import Foundation
 import NetworkExtension
 import UIKit
@@ -15,8 +16,11 @@ import WireGuardKit
 /// A class that provides a convenient interface for VPN tunnels configuration, manipulation and
 /// monitoring.
 class TunnelManager {
-    /// A private key rotation interval (in days)
-    private let keyRotationDaysInterval = 4
+    /// Key rotation interval (in seconds)
+    private let keyRotationInterval: TimeInterval = 60 * 60 * 24 * 4
+
+    /// Key rotation retry interval (in seconds)
+    private let keyRotationFailureRetryInterval: TimeInterval = 60 * 15
 
     /// Operation categories
     private enum OperationCategory {
@@ -356,13 +360,9 @@ class TunnelManager {
             .some(or: .missingAccount)
             .mapThen { tunnelInfo in
                 let creationDate = tunnelInfo.tunnelSettings.interface.privateKey.creationDate
-                let dateComponents = Calendar.current.dateComponents([.day], from: creationDate, to: Date())
-                
-                guard let daysElapsed = dateComponents.day else {
-                    return .failure(.computeDateComponents)
-                }
+                let timeInterval = Date().timeIntervalSince(creationDate)
 
-                guard daysElapsed >= self.keyRotationDaysInterval else {
+                guard timeInterval >= self.keyRotationInterval else {
                     return .success(.throttled)
                 }
 
@@ -420,6 +420,108 @@ class TunnelManager {
             .schedule(on: stateQueue)
             .run(on: operationQueue, categories: [OperationCategory.changeTunnelSettings])
             .requestBackgroundTime(taskName: "TunnelManager.setDNSSettings")
+    }
+
+    // MARK: - Background tasks
+
+    /// Register background task with scheduler.
+    @available(iOS 13.0, *)
+    func registerBackgroundTask() {
+        let taskIdentifier = ApplicationConfiguration.keyRotationTaskIdentifier
+
+        let isRegistered = BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
+            var cancellationToken: PromiseCancellationToken?
+
+            self.logger.debug("Start key rotation task")
+
+            self.rotatePrivateKey()
+                .storeCancellationToken(in: &cancellationToken)
+                .observe { completion in
+                    // Compute retry interval and log result
+                    var retryInterval: TimeInterval?
+                    switch completion {
+                    case .finished(.success):
+                        retryInterval = self.keyRotationInterval
+
+                        self.logger.debug("Finished key rotation. Next rotation in \(retryInterval!.logFormatDuration(allowedUnits: .day))")
+
+                    case .finished(.failure(let error)):
+                        self.logger.error(chainedError: error, message: "Failed to rotate the key in background task.")
+
+                        switch error {
+                        case .missingAccount:
+                            // Do not retry logged out.
+                            break
+
+                        case .replaceWireguardKey(.server(.invalidAccount)):
+                            // Do not retry if account was removed.
+                            break
+
+                        default:
+                            retryInterval = self.keyRotationFailureRetryInterval
+
+                            self.logger.error(chainedError: error, message: "Retry key rotation in \(retryInterval!.logFormatDuration(allowedUnits: .minute))")
+                        }
+
+                    case .cancelled:
+                        retryInterval = self.keyRotationFailureRetryInterval
+
+                        self.logger.debug("Key rotation was cancelled. Retry in \(retryInterval!.logFormatDuration(allowedUnits: .minute))")
+                    }
+
+                    // Schedule next background task
+                    if let retryInterval = retryInterval {
+                        let nextDate = Date().addingTimeInterval(retryInterval)
+                        switch self.submitBackgroundTask(at: nextDate) {
+                        case .success:
+                            self.logger.debug("Scheduled next key rotation task at \(nextDate.logFormatDate())")
+
+                        case .failure(let error):
+                            self.logger.error(chainedError: error, message: "Failed to schedule next key rotation task")
+                        }
+                    }
+
+                    // Complete current task
+                    task.setTaskCompleted(success: !completion.isCancelled)
+                }
+
+            task.expirationHandler = {
+                cancellationToken?.cancel()
+            }
+        }
+
+        if isRegistered {
+            logger.debug("Registered key rotation task")
+        } else {
+            logger.error("Failed to register key rotation task")
+        }
+    }
+
+    /// Schedule background task relative to the private key creation date.
+    @available(iOS 13.0, *)
+    func scheduleBackgroundTask() -> Result<(), TunnelManager.Error>.Promise {
+        return Promise.deferred { self.tunnelInfo }
+            .some(or: .missingAccount)
+            .flatMap { tunnelInfo -> Result<(), TunnelManager.Error> in
+                let creationDate = tunnelInfo.tunnelSettings.interface.privateKey.creationDate
+                let beginDate = creationDate.addingTimeInterval(self.keyRotationInterval)
+
+                return self.submitBackgroundTask(at: beginDate)
+            }
+            .schedule(on: stateQueue)
+    }
+
+    /// Create and submit task request to scheduler.
+    @available(iOS 13.0, *)
+    private func submitBackgroundTask(at beginDate: Date) -> Result<(), TunnelManager.Error> {
+        let request = BGProcessingTaskRequest(identifier: ApplicationConfiguration.keyRotationTaskIdentifier)
+        request.earliestBeginDate = beginDate
+        request.requiresNetworkConnectivity = true
+
+        return Result { try BGTaskScheduler.shared.submit(request) }
+            .mapError { error in
+                return .backgroundTaskScheduler(error)
+            }
     }
 
     // MARK: - Tunnel observeration

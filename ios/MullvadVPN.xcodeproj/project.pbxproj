@@ -285,6 +285,10 @@
 		58FAEE0324533ABE00CB0F5B /* KeychainReturn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FAEDFE24533A7000CB0F5B /* KeychainReturn.swift */; };
 		58FAEE0424533AC000CB0F5B /* KeychainClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FAEE0024533A9C00CB0F5B /* KeychainClass.swift */; };
 		58FB865526E8BF3100F188BC /* AppStorePaymentManagerError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FB865426E8BF3100F188BC /* AppStorePaymentManagerError.swift */; };
+		58FB865826EA213300F188BC /* AnyRelayCacheObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FB865726EA213300F188BC /* AnyRelayCacheObserver.swift */; };
+		58FB865A26EA214400F188BC /* RelayCacheObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FB865926EA214400F188BC /* RelayCacheObserver.swift */; };
+		58FB865E26EA284E00F188BC /* LogFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FB865D26EA284E00F188BC /* LogFormatting.swift */; };
+		58FB865F26EA2E6D00F188BC /* LogFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FB865D26EA284E00F188BC /* LogFormatting.swift */; };
 		58FD5BE724192A2C00112C88 /* AppStoreReceipt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FD5BE624192A2B00112C88 /* AppStoreReceipt.swift */; };
 		58FD5BF024238EB300112C88 /* SKProduct+Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FD5BEF24238EB300112C88 /* SKProduct+Formatting.swift */; };
 		58FD5BF22424F7D700112C88 /* UserInterfaceInteractionRestriction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FD5BF12424F7D700112C88 /* UserInterfaceInteractionRestriction.swift */; };
@@ -532,6 +536,9 @@
 		58FAEDFE24533A7000CB0F5B /* KeychainReturn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainReturn.swift; sourceTree = "<group>"; };
 		58FAEE0024533A9C00CB0F5B /* KeychainClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainClass.swift; sourceTree = "<group>"; };
 		58FB865426E8BF3100F188BC /* AppStorePaymentManagerError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStorePaymentManagerError.swift; sourceTree = "<group>"; };
+		58FB865726EA213300F188BC /* AnyRelayCacheObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyRelayCacheObserver.swift; sourceTree = "<group>"; };
+		58FB865926EA214400F188BC /* RelayCacheObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayCacheObserver.swift; sourceTree = "<group>"; };
+		58FB865D26EA284E00F188BC /* LogFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogFormatting.swift; sourceTree = "<group>"; };
 		58FD5BE624192A2B00112C88 /* AppStoreReceipt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreReceipt.swift; sourceTree = "<group>"; };
 		58FD5BEF24238EB300112C88 /* SKProduct+Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SKProduct+Formatting.swift"; sourceTree = "<group>"; };
 		58FD5BF12424F7D700112C88 /* UserInterfaceInteractionRestriction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserInterfaceInteractionRestriction.swift; sourceTree = "<group>"; };
@@ -604,10 +611,11 @@
 			children = (
 				581503A224D6F1EC00C9C50E /* ChainedError+Logger.swift */,
 				5815039624D6ECAE00C9C50E /* CustomFormatLogHandler.swift */,
+				58FB865D26EA284E00F188BC /* LogFormatting.swift */,
 				581503A524D6F4AE00C9C50E /* Logging.swift */,
 				5815039324D6EB7200C9C50E /* LogRotation.swift */,
-				5815039C24D6ECE600C9C50E /* TextFileOutputStream.swift */,
 				5823FA4F26CA690600283BF8 /* OSLogHandler.swift */,
+				5815039C24D6ECE600C9C50E /* TextFileOutputStream.swift */,
 			);
 			path = Logging;
 			sourceTree = "<group>";
@@ -671,11 +679,13 @@
 		585DA87526B0249A00B8C587 /* RelayCache */ = {
 			isa = PBXGroup;
 			children = (
-				5820675A26E6576800655B05 /* RelayCache.swift */,
+				58FB865726EA213300F188BC /* AnyRelayCacheObserver.swift */,
 				585DA87626B024A600B8C587 /* CachedRelays.swift */,
-				58BFA5C522A7C97F00A6173D /* RelayCacheTracker.swift */,
+				5820675A26E6576800655B05 /* RelayCache.swift */,
 				585DA87926B024F900B8C587 /* RelayCacheError.swift */,
 				585DA87C26B0254000B8C587 /* RelayCacheIO.swift */,
+				58FB865926EA214400F188BC /* RelayCacheObserver.swift */,
+				58BFA5C522A7C97F00A6173D /* RelayCacheTracker.swift */,
 			);
 			path = RelayCache;
 			sourceTree = "<group>";
@@ -1270,6 +1280,7 @@
 				585DA89126B0322700B8C587 /* PacketTunnelIpc.swift in Sources */,
 				5877153023981F7B001F8237 /* WireguardKeysViewController.swift in Sources */,
 				587B7536266528A200DEF7E9 /* NotificationManager.swift in Sources */,
+				58FB865A26EA214400F188BC /* RelayCacheObserver.swift in Sources */,
 				58ACF64D26567A5000ACE4B7 /* CustomSwitch.swift in Sources */,
 				5850367F25A481D800A43E93 /* IPAddressRange+Codable.swift in Sources */,
 				5871FB96254ADE4E0051A0A4 /* ConsolidatedApplicationLog.swift in Sources */,
@@ -1364,12 +1375,14 @@
 				5868BD33261DCD2600E6027F /* CustomSplitViewController.swift in Sources */,
 				58CCA01E2242787B004F3011 /* AccountTextField.swift in Sources */,
 				584592612639B4A200EF967F /* ConsentContentView.swift in Sources */,
+				58FB865E26EA284E00F188BC /* LogFormatting.swift in Sources */,
 				587AD7CA2342283900E93A53 /* Account.swift in Sources */,
 				585DA88726B0277200B8C587 /* RESTError.swift in Sources */,
 				58293FB725138B88005D0BB5 /* CustomNavigationController.swift in Sources */,
 				587425C12299833500CA2045 /* RootContainerViewController.swift in Sources */,
 				585DA87726B024A600B8C587 /* CachedRelays.swift in Sources */,
 				585DA89B26B146B300B8C587 /* PacketTunnelIpcHandler.swift in Sources */,
+				58FB865826EA213300F188BC /* AnyRelayCacheObserver.swift in Sources */,
 				5896AE84246D5889005B36CB /* CustomDateComponentsFormatting.swift in Sources */,
 				585DA89626B0328000B8C587 /* PacketTunnelResponse.swift in Sources */,
 				587AD7C623421D7000E93A53 /* TunnelSettings.swift in Sources */,
@@ -1398,6 +1411,7 @@
 				58FAEE0224533ABB00CB0F5B /* KeychainMatchLimit.swift in Sources */,
 				5860392A26DCE7AB00554C79 /* PromiseCompletion.swift in Sources */,
 				58FAEE0224533ABB00CB0F5B /* KeychainMatchLimit.swift in Sources */,
+				58FB865F26EA2E6D00F188BC /* LogFormatting.swift in Sources */,
 				585DA89726B0328000B8C587 /* PacketTunnelResponse.swift in Sources */,
 				587C575426D2615F005EF767 /* PacketTunnelOptions.swift in Sources */,
 				58FAEE0324533ABE00CB0F5B /* KeychainReturn.swift in Sources */,

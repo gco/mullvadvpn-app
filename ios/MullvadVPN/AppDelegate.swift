@@ -10,6 +10,7 @@ import UIKit
 import StoreKit
 import UserNotifications
 import Logging
+import BackgroundTasks
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -52,8 +53,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         SimulatorTunnelProvider.shared.delegate = simulatorTunnelProvider
         #endif
 
-        // Fetch data once an hour
-        application.setMinimumBackgroundFetchInterval(ApplicationConfiguration.minimumBackgroundFetchInterval)
+        // Register background tasks
+        if #available(iOS 13.0, *) {
+            RelayCache.Tracker.shared.registerAppRefreshTask()
+            TunnelManager.shared.registerBackgroundTask()
+        } else {
+            // Set background refresh interval on iOS 12
+            application.setMinimumBackgroundFetchInterval(ApplicationConfiguration.minimumBackgroundFetchInterval)
+        }
 
         // Assign user notification center delegate
         UNUserNotificationCenter.current().delegate = self
@@ -116,6 +123,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Show the window
         self.window?.makeKeyAndVisible()
 
+        // Update relays and rotate private key
+        refreshAppData().observe { _ in }
+
         return true
     }
 
@@ -129,30 +139,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         RelayCache.Tracker.shared.stopPeriodicUpdates()
     }
 
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        if #available(iOS 13, *) {
+            scheduleBackgroundTasks()
+        }
+    }
+
     func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
         logger?.info("Start background refresh")
 
-        RelayCache.Tracker.shared.updateRelays()
-            .then { fetchRelaysResult -> Promise<UIBackgroundFetchResult> in
-                switch fetchRelaysResult {
-                case .success(let result):
-                    self.logger?.debug("Finished updating relays in background refresh: \(result)")
-                case .failure(let error):
-                    self.logger?.error(chainedError: error, message: "Failed to update relays in background refresh")
-                }
-
-                return TunnelManager.shared.rotatePrivateKey()
-                    .then { rotationResult -> UIBackgroundFetchResult in
-                        switch rotationResult {
-                        case .success(let result):
-                            self.logger?.debug("Finished rotating the key in background refresh: \(result)")
-                        case .failure(let error):
-                            self.logger?.error(chainedError: error, message: "Failed to rotate the key in background refresh")
-                        }
-
-                        return fetchRelaysResult.backgroundFetchResult.combine(with: rotationResult.backgroundFetchResult)
-                    }
-            }
+        refreshAppData()
             .receive(on: .main)
             .observe { completion in
                 switch completion {
@@ -168,6 +164,51 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     // MARK: - Private
+
+    private func refreshAppData() -> Promise<UIBackgroundFetchResult> {
+        return RelayCache.Tracker.shared.updateRelays()
+            .then { fetchRelaysResult -> Promise<UIBackgroundFetchResult> in
+                switch fetchRelaysResult {
+                case .success(let result):
+                    self.logger?.debug("Finished updating relays: \(result)")
+                case .failure(let error):
+                    self.logger?.error(chainedError: error, message: "Failed to update relays")
+                }
+
+                return TunnelManager.shared.rotatePrivateKey()
+                    .then { rotationResult -> UIBackgroundFetchResult in
+                        switch rotationResult {
+                        case .success(let result):
+                            self.logger?.debug("Finished rotating the key: \(result)")
+                        case .failure(let error):
+                            self.logger?.error(chainedError: error, message: "Failed to rotate the key")
+                        }
+
+                        return fetchRelaysResult.backgroundFetchResult.combine(with: rotationResult.backgroundFetchResult)
+                    }
+            }
+    }
+
+    @available(iOS 13.0, *)
+    private func scheduleBackgroundTasks() {
+        switch RelayCache.Tracker.shared.scheduleAppRefreshTask().await() {
+        case .finished(.success):
+            self.logger?.debug("Scheduled app refresh task")
+        case .finished(.failure(let error)):
+            self.logger?.error(chainedError: error, message: "Could not schedule app refresh task")
+        case .cancelled:
+            self.logger?.debug("Could not schedule app refresh task due to cancellation")
+        }
+
+        switch TunnelManager.shared.scheduleBackgroundTask().await() {
+        case .finished(.success):
+            self.logger?.debug("Scheduled key rotation task")
+        case .finished(.failure(let error)):
+            self.logger?.error(chainedError: error, message: "Could not schedule key rotation task")
+        case .cancelled:
+            self.logger?.debug("Could not schedule key rotation task due to cancellation")
+        }
+    }
 
     private func didFinishInitialization() {
         self.logger?.debug("Finished initialization. Show user interface.")

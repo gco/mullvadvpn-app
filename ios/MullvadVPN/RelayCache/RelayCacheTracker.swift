@@ -6,35 +6,11 @@
 //  Copyright © 2019 Mullvad VPN AB. All rights reserved.
 //
 
+import BackgroundTasks
 import Foundation
 import Logging
 
-/// Periodic update interval
-private let kUpdateIntervalSeconds = 3600
-
-protocol RelayCacheObserver: AnyObject {
-    func relayCache(_ relayCache: RelayCache.Tracker, didUpdateCachedRelays cachedRelays: RelayCache.CachedRelays)
-}
-
 extension RelayCache {
-
-    private class AnyRelayCacheObserver: WeakObserverBox, RelayCacheObserver {
-        typealias Wrapped = RelayCacheObserver
-
-        private(set) weak var inner: RelayCacheObserver?
-
-        init<T: RelayCacheObserver>(_ inner: T) {
-            self.inner = inner
-        }
-
-        func relayCache(_ relayCache: RelayCache.Tracker, didUpdateCachedRelays cachedRelays: CachedRelays) {
-            inner?.relayCache(relayCache, didUpdateCachedRelays: cachedRelays)
-        }
-
-        static func == (lhs: AnyRelayCacheObserver, rhs: AnyRelayCacheObserver) -> Bool {
-            return lhs.inner === rhs.inner
-        }
-    }
 
     enum FetchResult: CustomStringConvertible {
         /// Request to update relays was throttled.
@@ -59,7 +35,12 @@ extension RelayCache {
     }
 
     class Tracker {
+        /// Relay update interval (in seconds)
+        private static let relayUpdateInterval: TimeInterval = 60 * 60
+
+        /// Tracker log
         private let logger = Logger(label: "RelayCacheTracker")
+
         /// The cache location used by the class instance
         private let cacheFileURL: URL
 
@@ -104,10 +85,9 @@ extension RelayCache {
                 self.isPeriodicUpdatesEnabled = true
 
                 switch RelayCache.IO.read(cacheFileURL: self.cacheFileURL) {
-                case .success(let cachedRelayList):
-                    if let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelayList.updatedAt) {
-                        self.scheduleRepeatingTimer(startTime: .now() + nextUpdate.timeIntervalSinceNow)
-                    }
+                case .success(let cachedRelays):
+                    let nextUpdate = cachedRelays.updatedAt.addingTimeInterval(Self.relayUpdateInterval)
+                    self.scheduleRepeatingTimer(startTime: .now() + nextUpdate.timeIntervalSinceNow)
 
                 case .failure(let readError):
                     self.logger.error(chainedError: readError, message: "Failed to read the relay cache")
@@ -138,9 +118,9 @@ extension RelayCache {
             .then { result in
                 switch result {
                 case .success(let cachedRelays):
-                    let nextUpdate = Self.nextUpdateDate(lastUpdatedAt: cachedRelays.updatedAt)
+                    let nextUpdate = cachedRelays.updatedAt.addingTimeInterval(Self.relayUpdateInterval)
 
-                    if let nextUpdate = nextUpdate, nextUpdate <= Date() {
+                    if nextUpdate <= Date() {
                         return self.downloadRelays(previouslyCachedRelays: cachedRelays)
                     } else {
                         return .success(.throttled)
@@ -165,6 +145,69 @@ extension RelayCache {
                     preBundledRelaysFileURL: self.prebundledRelaysFileURL
                 )
             }.schedule(on: stateQueue)
+        }
+
+        // MARK: - Background tasks
+
+        /// Register app refresh task with scheduler.
+        @available(iOS 13.0, *)
+        func registerAppRefreshTask() {
+            let taskIdentifier = ApplicationConfiguration.appRefreshTaskIdentifier
+
+            let isRegistered = BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
+                var cancellationToken: PromiseCancellationToken?
+
+                self.logger.debug("Start app refresh task")
+
+                self.updateRelays()
+                    .storeCancellationToken(in: &cancellationToken)
+                    .observe { completion in
+                        // Schedule next refresh
+                        let nextDate = Date().addingTimeInterval(Self.relayUpdateInterval)
+
+                        switch self.submitAppRefreshTask(at: nextDate) {
+                        case .success:
+                            self.logger.debug("Scheduled next app refresh task at \(nextDate)")
+                        case .failure(let error):
+                            self.logger.error(chainedError: error, message: "Failed to schedule next app refresh task")
+                        }
+
+                        // Complete current task
+                        task.setTaskCompleted(success: !completion.isCancelled)
+                    }
+
+                task.expirationHandler = {
+                    cancellationToken?.cancel()
+                }
+            }
+
+            if isRegistered {
+                logger.debug("Registered app refresh task: \(taskIdentifier)")
+            } else {
+                logger.error("Failed to register app refresh task: \(taskIdentifier)")
+            }
+        }
+
+        /// Schedules app refresh task relative to the last relays update.
+        @available(iOS 13.0, *)
+        func scheduleAppRefreshTask() -> Result<(), RelayCache.Error>.Promise {
+            return self.read().flatMap { cachedRelays in
+                let beginDate = cachedRelays.updatedAt.addingTimeInterval(Self.relayUpdateInterval)
+
+                return self.submitAppRefreshTask(at: beginDate)
+            }
+        }
+
+        /// Create and submit task request to scheduler.
+        @available(iOS 13.0, *)
+        private func submitAppRefreshTask(at beginDate: Date) -> Result<(), RelayCache.Error> {
+            let request = BGAppRefreshTaskRequest(identifier: ApplicationConfiguration.appRefreshTaskIdentifier)
+            request.earliestBeginDate = beginDate
+
+            return Result { try BGTaskScheduler.shared.submit(request) }
+                .mapError { error in
+                    return .backgroundTaskScheduler(error)
+                }
         }
 
         // MARK: - Observation
@@ -233,21 +276,13 @@ extension RelayCache {
                 self?.updateRelays().observe { _ in }
             }
 
-            timerSource.schedule(wallDeadline: startTime, repeating: .seconds(kUpdateIntervalSeconds))
+            timerSource.schedule(wallDeadline: startTime, repeating: .seconds(Int(Self.relayUpdateInterval)))
             timerSource.activate()
 
             self.timerSource = timerSource
         }
 
         // MARK: - Private class methods
-
-        private class func nextUpdateDate(lastUpdatedAt: Date) -> Date? {
-            return Calendar.current.date(
-                byAdding: .second,
-                value: kUpdateIntervalSeconds,
-                to: lastUpdatedAt
-            )
-        }
 
         private class func shouldDownloadRelaysOnReadFailure(_ error: RelayCache.Error) -> Bool {
             switch error {

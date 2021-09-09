@@ -66,8 +66,8 @@ extension TunnelManager {
         /// A failure to remove the public WireGuard key
         case removeWireguardKey(REST.Error)
 
-        /// A failure to compute date components
-        case computeDateComponents
+        /// A failure to schedule background task
+        case backgroundTaskScheduler(Swift.Error)
 
         var errorDescription: String? {
             switch self {
@@ -107,8 +107,8 @@ extension TunnelManager {
                 return "Failed to replace the WireGuard key on server"
             case .removeWireguardKey:
                 return "Failed to remove the WireGuard key from server"
-            case .computeDateComponents:
-                return "Failed to compute the date components"
+            case .backgroundTaskScheduler:
+                return "Failed to schedule background task"
             }
         }
     }
