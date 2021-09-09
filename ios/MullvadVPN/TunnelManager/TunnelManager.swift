@@ -87,7 +87,7 @@ class TunnelManager {
     private init() {
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(refreshTunnelState),
+            selector: #selector(applicationDidBecomeActive),
             name: UIApplication.didBecomeActiveNotification,
             object: nil
         )
@@ -137,15 +137,6 @@ class TunnelManager {
             .schedule(on: stateQueue)
             .run(on: operationQueue, categories: [OperationCategory.manageTunnelProvider, OperationCategory.changeTunnelSettings])
             .requestBackgroundTime(taskName: "TunnelManager.loadAccount")
-    }
-
-    /// Refresh tunnel state.
-    /// Use this method to update the tunnel state when app transitions from suspended to active
-    /// state.
-    @objc func refreshTunnelState() {
-        stateQueue.async {
-            self.updateTunnelState()
-        }
     }
 
     func startTunnel() {
@@ -851,6 +842,13 @@ class TunnelManager {
         .schedule(on: stateQueue)
         .run(on: operationQueue, categories: [OperationCategory.notifyTunnelSettingsChange])
         .requestBackgroundTime(taskName: "TunnelManager.notifyTunnelOnSettingsChange")
+    }
+
+    @objc private func applicationDidBecomeActive() {
+        stateQueue.async {
+            // Refresh tunnel state when application becomes active.
+            self.updateTunnelState()
+        }
     }
 
     // MARK: - Private class methods
