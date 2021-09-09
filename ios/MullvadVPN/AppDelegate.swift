@@ -624,17 +624,20 @@ extension AppDelegate: SelectLocationViewControllerDelegate {
 
         TunnelManager.shared.setRelayConstraints(relayConstraints)
             .receive(on: .main)
-            .onComplete { _ in
+            .observe { completion in
+                guard let result = completion.unwrappedValue else { return }
+
                 self.relayConstraints = relayConstraints
+
+                switch result {
+                case .success:
+                    self.logger?.debug("Updated relay constraints: \(relayConstraints)")
+                    TunnelManager.shared.startTunnel()
+
+                case .failure(let error):
+                    self.logger?.error(chainedError: error, message: "Failed to update relay constraints")
+                }
             }
-            .onSuccess { _ in
-                self.logger?.debug("Updated relay constraints: \(relayConstraints)")
-                TunnelManager.shared.startTunnel()
-            }
-            .onFailure { error in
-                self.logger?.error(chainedError: error, message: "Failed to update relay constraints")
-            }
-            .observe { _ in }
     }
 }
 

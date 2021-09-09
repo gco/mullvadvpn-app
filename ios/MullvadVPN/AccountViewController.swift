@@ -118,20 +118,23 @@ class AccountViewController: UIViewController, AppStorePaymentObserver, AccountO
 
         AppStorePaymentManager.shared.requestProducts(with: [inAppPurchase])
             .receive(on: .main)
-            .onComplete { result in
-                switch result {
-                case .success(let response):
-                    if let product = response.products.first {
-                        self.setProduct(product, animated: true)
-                    }
-
-                case .failure(let error):
-                    self.didFailLoadingProducts(with: error)
-                }
-            }
             .observe { [weak self] completion in
-                self?.contentView.purchaseButton.isLoading = false
-                self?.purchaseButtonInteractionRestriction.decrease(animated: true)
+                guard let self = self else { return }
+                
+                if let result = completion.unwrappedValue {
+                    switch result {
+                    case .success(let response):
+                        if let product = response.products.first {
+                            self.setProduct(product, animated: true)
+                        }
+
+                    case .failure(let error):
+                        self.didFailLoadingProducts(with: error)
+                    }
+                }
+
+                self.contentView.purchaseButton.isLoading = false
+                self.purchaseButtonInteractionRestriction.decrease(animated: true)
             }
     }
 
