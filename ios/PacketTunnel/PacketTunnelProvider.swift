@@ -107,7 +107,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
         providerLogger.debug("Stop the tunnel: \(reason)")
 
-        _ = adapter.stop()
+        adapter.stop()
             .receive(on: self.dispatchQueue)
             .mapError { error in
                 return PacketTunnelProviderError.stopWireguardAdapter(error)
@@ -134,7 +134,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
                 switch request {
                 case .reloadTunnelSettings:
-                    _ = self.reloadTunnelSettings().observe { _ in }
+                    self.reloadTunnelSettings().observe { _ in }
                     return .success(nil)
 
                 case .tunnelConnectionInfo:
