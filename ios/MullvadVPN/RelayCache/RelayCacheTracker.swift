@@ -153,38 +153,14 @@ extension RelayCache {
         @available(iOS 13.0, *)
         func registerAppRefreshTask() {
             let taskIdentifier = ApplicationConfiguration.appRefreshTaskIdentifier
-
             let isRegistered = BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
-                var cancellationToken: PromiseCancellationToken?
-
-                self.logger.debug("Start app refresh task")
-
-                self.updateRelays()
-                    .storeCancellationToken(in: &cancellationToken)
-                    .observe { completion in
-                        // Schedule next refresh
-                        let nextDate = Date().addingTimeInterval(Self.relayUpdateInterval)
-
-                        switch self.submitAppRefreshTask(at: nextDate) {
-                        case .success:
-                            self.logger.debug("Scheduled next app refresh task at \(nextDate)")
-                        case .failure(let error):
-                            self.logger.error(chainedError: error, message: "Failed to schedule next app refresh task")
-                        }
-
-                        // Complete current task
-                        task.setTaskCompleted(success: !completion.isCancelled)
-                    }
-
-                task.expirationHandler = {
-                    cancellationToken?.cancel()
-                }
+                self.handleAppRefreshTask(task as! BGAppRefreshTask)
             }
 
             if isRegistered {
-                logger.debug("Registered app refresh task: \(taskIdentifier)")
+                logger.debug("Registered app refresh task")
             } else {
-                logger.error("Failed to register app refresh task: \(taskIdentifier)")
+                logger.error("Failed to register app refresh task")
             }
         }
 
@@ -208,6 +184,47 @@ extension RelayCache {
                 .mapError { error in
                     return .backgroundTaskScheduler(error)
                 }
+        }
+
+        /// Background task handler
+        @available(iOS 13.0, *)
+        private func handleAppRefreshTask(_ task: BGAppRefreshTask) {
+            var cancellationToken: PromiseCancellationToken?
+
+            self.logger.debug("Start app refresh task")
+
+            self.updateRelays()
+                .storeCancellationToken(in: &cancellationToken)
+                .observe { completion in
+                    switch completion {
+                    case .finished(.success(let fetchResult)):
+                        self.logger.debug("Finished updating relays: \(fetchResult)")
+
+                    case .finished(.failure(let error)):
+                        self.logger.error(chainedError: error, message: "Failed to update relays in app refresh task")
+
+                    case .cancelled:
+                        self.logger.debug("App refresh task was cancelled")
+                    }
+
+                    // Schedule next refresh
+                    let nextDate = Date(timeIntervalSinceNow: Self.relayUpdateInterval)
+
+                    switch self.submitAppRefreshTask(at: nextDate) {
+                    case .success:
+                        self.logger.debug("Scheduled next app refresh task at \(nextDate.logFormatDate())")
+
+                    case .failure(let error):
+                        self.logger.error(chainedError: error, message: "Failed to schedule next app refresh task")
+                    }
+
+                    // Complete current task
+                    task.setTaskCompleted(success: !completion.isCancelled)
+                }
+
+            task.expirationHandler = {
+                cancellationToken?.cancel()
+            }
         }
 
         // MARK: - Observation

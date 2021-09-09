@@ -430,64 +430,7 @@ class TunnelManager {
         let taskIdentifier = ApplicationConfiguration.keyRotationTaskIdentifier
 
         let isRegistered = BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
-            var cancellationToken: PromiseCancellationToken?
-
-            self.logger.debug("Start key rotation task")
-
-            self.rotatePrivateKey()
-                .storeCancellationToken(in: &cancellationToken)
-                .observe { completion in
-                    // Compute retry interval and log result
-                    var retryInterval: TimeInterval?
-                    switch completion {
-                    case .finished(.success):
-                        retryInterval = self.keyRotationInterval
-
-                        self.logger.debug("Finished key rotation. Next rotation in \(retryInterval!.logFormatDuration(allowedUnits: .day))")
-
-                    case .finished(.failure(let error)):
-                        self.logger.error(chainedError: error, message: "Failed to rotate the key in background task.")
-
-                        switch error {
-                        case .missingAccount:
-                            // Do not retry logged out.
-                            break
-
-                        case .replaceWireguardKey(.server(.invalidAccount)):
-                            // Do not retry if account was removed.
-                            break
-
-                        default:
-                            retryInterval = self.keyRotationFailureRetryInterval
-
-                            self.logger.error(chainedError: error, message: "Retry key rotation in \(retryInterval!.logFormatDuration(allowedUnits: .minute))")
-                        }
-
-                    case .cancelled:
-                        retryInterval = self.keyRotationFailureRetryInterval
-
-                        self.logger.debug("Key rotation was cancelled. Retry in \(retryInterval!.logFormatDuration(allowedUnits: .minute))")
-                    }
-
-                    // Schedule next background task
-                    if let retryInterval = retryInterval {
-                        let nextDate = Date().addingTimeInterval(retryInterval)
-                        switch self.submitBackgroundTask(at: nextDate) {
-                        case .success:
-                            self.logger.debug("Scheduled next key rotation task at \(nextDate.logFormatDate())")
-
-                        case .failure(let error):
-                            self.logger.error(chainedError: error, message: "Failed to schedule next key rotation task")
-                        }
-                    }
-
-                    // Complete current task
-                    task.setTaskCompleted(success: !completion.isCancelled)
-                }
-
-            task.expirationHandler = {
-                cancellationToken?.cancel()
-            }
+            self.handleBackgroundTask(task as! BGProcessingTask)
         }
 
         if isRegistered {
@@ -522,6 +465,70 @@ class TunnelManager {
             .mapError { error in
                 return .backgroundTaskScheduler(error)
             }
+    }
+
+    /// Background task handler.
+    @available(iOS 13.0, *)
+    private func handleBackgroundTask(_ task: BGProcessingTask) {
+        var cancellationToken: PromiseCancellationToken?
+
+        self.logger.debug("Start key rotation task")
+
+        self.rotatePrivateKey()
+            .storeCancellationToken(in: &cancellationToken)
+            .observe { completion in
+                // Compute retry interval and log result
+                var retryInterval: TimeInterval?
+                switch completion {
+                case .finished(.success):
+                    retryInterval = self.keyRotationInterval
+
+                    self.logger.debug("Finished key rotation. Next rotation in \(retryInterval!.logFormatDuration(allowedUnits: .day))")
+
+                case .finished(.failure(let error)):
+                    self.logger.error(chainedError: error, message: "Failed to rotate the key in background task.")
+
+                    switch error {
+                    case .missingAccount:
+                        // Do not retry logged out.
+                        break
+
+                    case .replaceWireguardKey(.server(.invalidAccount)):
+                        // Do not retry if account was removed.
+                        break
+
+                    default:
+                        retryInterval = self.keyRotationFailureRetryInterval
+
+                        self.logger.error(chainedError: error, message: "Retry key rotation in \(retryInterval!.logFormatDuration(allowedUnits: .minute))")
+                    }
+
+                case .cancelled:
+                    retryInterval = self.keyRotationFailureRetryInterval
+
+                    self.logger.debug("Key rotation was cancelled. Retry in \(retryInterval!.logFormatDuration(allowedUnits: .minute))")
+                }
+
+                // Schedule next background task
+                if let retryInterval = retryInterval {
+                    let nextDate = Date(timeIntervalSinceNow: retryInterval)
+
+                    switch self.submitBackgroundTask(at: nextDate) {
+                    case .success:
+                        self.logger.debug("Scheduled next key rotation task at \(nextDate.logFormatDate())")
+
+                    case .failure(let error):
+                        self.logger.error(chainedError: error, message: "Failed to schedule next key rotation task")
+                    }
+                }
+
+                // Complete current task
+                task.setTaskCompleted(success: !completion.isCancelled)
+            }
+
+        task.expirationHandler = {
+            cancellationToken?.cancel()
+        }
     }
 
     // MARK: - Tunnel observeration
