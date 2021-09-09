@@ -9,12 +9,13 @@
 import Foundation
 
 extension TimeInterval {
-    func logFormatDuration(allowedUnits: NSCalendar.Unit, maximumUnitCount: Int = 1) -> String {
+    func logFormatDuration(allowedUnits: NSCalendar.Unit, unitsStyle: DateComponentsFormatter.UnitsStyle = .full, maximumUnitCount: Int = 1) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")
 
         let formatter = DateComponentsFormatter()
         formatter.calendar = calendar
+        formatter.unitsStyle = unitsStyle
         formatter.allowedUnits = allowedUnits
         formatter.maximumUnitCount = maximumUnitCount
 
