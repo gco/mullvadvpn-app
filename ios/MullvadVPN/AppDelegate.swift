@@ -123,20 +123,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Show the window
         self.window?.makeKeyAndVisible()
 
-        // Update relays and rotate private key
-        refreshAppData().observe { _ in }
-
         return true
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         // Start periodic relays updates
         RelayCache.Tracker.shared.startPeriodicUpdates()
+
+        // Start periodic private key rotation
+        TunnelManager.shared.startPeriodicPrivateKeyRotation()
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
         // Stop periodic relays updates
         RelayCache.Tracker.shared.stopPeriodicUpdates()
+
+        // Stop periodic private key rotation
+        TunnelManager.shared.stopPeriodicPrivateKeyRotation()
     }
 
     func applicationDidEnterBackground(_ application: UIApplication) {
@@ -148,25 +151,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
         logger?.info("Start background refresh")
 
-        refreshAppData()
-            .receive(on: .main)
-            .observe { completion in
-                switch completion {
-                case .finished(let backgroundFetchResult):
-                    self.logger?.info("Finish background refresh with \(backgroundFetchResult)")
-                    completionHandler(backgroundFetchResult)
-
-                case .cancelled:
-                    self.logger?.info("Finish background refresh with cancelled promise")
-                    completionHandler(.failed)
-                }
-            }
-    }
-
-    // MARK: - Private
-
-    private func refreshAppData() -> Promise<UIBackgroundFetchResult> {
-        return RelayCache.Tracker.shared.updateRelays()
+        RelayCache.Tracker.shared.updateRelays()
             .then { fetchRelaysResult -> Promise<UIBackgroundFetchResult> in
                 switch fetchRelaysResult {
                 case .success(let result):
@@ -187,26 +172,40 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                         return fetchRelaysResult.backgroundFetchResult.combine(with: rotationResult.backgroundFetchResult)
                     }
             }
+            .receive(on: .main)
+            .observe { completion in
+                switch completion {
+                case .finished(let backgroundFetchResult):
+                    self.logger?.info("Finish background refresh with \(backgroundFetchResult)")
+                    completionHandler(backgroundFetchResult)
+
+                case .cancelled:
+                    self.logger?.info("Finish background refresh with cancelled promise")
+                    completionHandler(.failed)
+                }
+            }
     }
+
+    // MARK: - Private
 
     @available(iOS 13.0, *)
     private func scheduleBackgroundTasks() {
-        switch RelayCache.Tracker.shared.scheduleAppRefreshTask().await() {
-        case .finished(.success):
-            self.logger?.debug("Scheduled app refresh task")
-        case .finished(.failure(let error)):
-            self.logger?.error(chainedError: error, message: "Could not schedule app refresh task")
-        case .cancelled:
-            self.logger?.debug("Could not schedule app refresh task due to cancellation")
+        if case .finished(let result) = RelayCache.Tracker.shared.scheduleAppRefreshTask().await() {
+            switch result {
+            case .success:
+                self.logger?.debug("Scheduled app refresh task")
+            case .failure(let error):
+                self.logger?.error(chainedError: error, message: "Could not schedule app refresh task")
+            }
         }
 
-        switch TunnelManager.shared.scheduleBackgroundTask().await() {
-        case .finished(.success):
-            self.logger?.debug("Scheduled key rotation task")
-        case .finished(.failure(let error)):
-            self.logger?.error(chainedError: error, message: "Could not schedule key rotation task")
-        case .cancelled:
-            self.logger?.debug("Could not schedule key rotation task due to cancellation")
+        if case .finished(let result) = TunnelManager.shared.scheduleBackgroundTask().await() {
+            switch result {
+            case .success:
+                self.logger?.debug("Scheduled private key rotation task")
+            case .failure(let error):
+                self.logger?.error(chainedError: error, message: "Could not schedule private key rotation task")
+            }
         }
     }
 
