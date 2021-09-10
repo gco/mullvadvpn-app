@@ -75,17 +75,6 @@ class TunnelManager {
     private var _tunnelInfo: TunnelInfo?
     private var _tunnelState = TunnelState.disconnected
 
-    private init() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(applicationDidBecomeActive),
-            name: UIApplication.didBecomeActiveNotification,
-            object: nil
-        )
-    }
-
-    // MARK: - Public
-
     private(set) var tunnelState: TunnelState {
         set {
             stateLock.withCriticalBlock {
@@ -108,6 +97,17 @@ class TunnelManager {
             }
         }
     }
+
+    private init() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+    }
+
+    // MARK: - Public methods
 
     /// Initialize the TunnelManager with the tunnel from the system.
     ///
