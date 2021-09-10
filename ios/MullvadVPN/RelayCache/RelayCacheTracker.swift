@@ -12,28 +12,6 @@ import Logging
 
 extension RelayCache {
 
-    enum FetchResult: CustomStringConvertible {
-        /// Request to update relays was throttled.
-        case throttled
-
-        /// Refreshed relays but the same content was found on remote.
-        case sameContent
-
-        /// Refreshed relays with new content.
-        case newContent
-
-        var description: String {
-            switch self {
-            case .throttled:
-                return "throttled"
-            case .sameContent:
-                return "same content"
-            case .newContent:
-                return "new content"
-            }
-        }
-    }
-
     class Tracker {
         /// Relay update interval (in seconds)
         private static let relayUpdateInterval: TimeInterval = 60 * 60
@@ -82,6 +60,8 @@ extension RelayCache {
             stateQueue.async {
                 guard !self.isPeriodicUpdatesEnabled else { return }
 
+                self.logger.debug("Start periodic relay updates")
+
                 self.isPeriodicUpdatesEnabled = true
 
                 switch RelayCache.IO.read(cacheFileURL: self.cacheFileURL) {
@@ -102,6 +82,8 @@ extension RelayCache {
         func stopPeriodicUpdates() {
             stateQueue.async {
                 guard self.isPeriodicUpdatesEnabled else { return }
+
+                self.logger.debug("Stop periodic relay updates")
 
                 self.isPeriodicUpdatesEnabled = false
 
@@ -237,6 +219,33 @@ extension RelayCache {
 
 }
 
+extension RelayCache {
+
+    /// Type describing the result of an attempt to fetch the new relay list from server.
+    enum FetchResult: CustomStringConvertible {
+        /// Request to update relays was throttled.
+        case throttled
+
+        /// Refreshed relays but the same content was found on remote.
+        case sameContent
+
+        /// Refreshed relays with new content.
+        case newContent
+
+        var description: String {
+            switch self {
+            case .throttled:
+                return "throttled"
+            case .sameContent:
+                return "same content"
+            case .newContent:
+                return "new content"
+            }
+        }
+    }
+
+}
+
 // MARK: - Background tasks
 
 @available(iOS 13.0, *)
@@ -288,10 +297,9 @@ extension RelayCache.Tracker {
         self.updateRelays()
             .storeCancellationToken(in: &cancellationToken)
             .observe { completion in
-                // Handle completion
                 switch completion {
                 case .finished(.success(let fetchResult)):
-                    self.logger.debug("Finished updating relays: \(fetchResult)")
+                    self.logger.debug("Finished updating relays in app refresh task: \(fetchResult)")
 
                 case .finished(.failure(let error)):
                     self.logger.error(chainedError: error, message: "Failed to update relays in app refresh task")
@@ -300,7 +308,6 @@ extension RelayCache.Tracker {
                     self.logger.debug("App refresh task was cancelled")
                 }
 
-                // Complete current task
                 task.setTaskCompleted(success: !completion.isCancelled)
             }
 
