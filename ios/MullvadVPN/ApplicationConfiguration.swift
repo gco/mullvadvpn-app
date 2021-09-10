@@ -45,5 +45,5 @@ extension ApplicationConfiguration {
     static let appRefreshTaskIdentifier = "net.mullvad.MullvadVPN.AppRefresh"
 
     /// Key rotation background task identifier
-    static let keyRotationTaskIdentifier = "net.mullvad.MullvadVPN.KeyRotation"
+    static let privateKeyRotationTaskIdentifier = "net.mullvad.MullvadVPN.PrivateKeyRotation"
 }

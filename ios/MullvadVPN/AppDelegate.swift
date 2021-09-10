@@ -53,8 +53,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         SimulatorTunnelProvider.shared.delegate = simulatorTunnelProvider
         #endif
 
-        // Register background tasks
         if #available(iOS 13.0, *) {
+            // Register background tasks on iOS 13
             RelayCache.Tracker.shared.registerAppRefreshTask()
             TunnelManager.shared.registerBackgroundTask()
         } else {

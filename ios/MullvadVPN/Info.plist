@@ -5,7 +5,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>net.mullvad.MullvadVPN.AppRefresh</string>
-		<string>net.mullvad.MullvadVPN.KeyRotation</string>
+		<string>net.mullvad.MullvadVPN.PrivateKeyRotation</string>
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
