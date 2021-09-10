@@ -63,9 +63,9 @@ class PreferencesViewController: UITableViewController, TunnelObserver {
         // no-op
     }
 
-    func tunnelManager(_ manager: TunnelManager, didUpdateTunnelSettings tunnelSettings: TunnelSettings?, accountToken: String?) {
-        if tunnelSettings?.interface.dnsSettings != self.dnsSettings {
-            self.dnsSettings = tunnelSettings?.interface.dnsSettings
+    func tunnelManager(_ manager: TunnelManager, didUpdateTunnelSettings tunnelInfo: TunnelInfo?) {
+        if tunnelInfo?.tunnelSettings.interface.dnsSettings != self.dnsSettings {
+            self.dnsSettings = tunnelInfo?.tunnelSettings.interface.dnsSettings
             self.tableView.reloadData()
         }
     }

@@ -22,8 +22,8 @@ class AnyTunnelObserver: WeakObserverBox, TunnelObserver {
         inner?.tunnelManager(manager, didUpdateTunnelState: tunnelState)
     }
 
-    func tunnelManager(_ manager: TunnelManager, didUpdateTunnelSettings tunnelSettings: TunnelSettings?, accountToken: String?) {
-        inner?.tunnelManager(manager, didUpdateTunnelSettings: tunnelSettings, accountToken: accountToken)
+    func tunnelManager(_ manager: TunnelManager, didUpdateTunnelSettings tunnelInfo: TunnelInfo?) {
+        inner?.tunnelManager(manager, didUpdateTunnelSettings: tunnelInfo)
     }
 
     func tunnelManager(_ manager: TunnelManager, didFailWithError error: TunnelManager.Error) {

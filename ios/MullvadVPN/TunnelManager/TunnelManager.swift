@@ -62,12 +62,7 @@ class TunnelManager {
         set {
             stateLock.withCriticalBlock {
                 _tunnelInfo = newValue
-
-                DispatchQueue.main.async {
-                    self.observerList.forEach { (observer) in
-                        observer.tunnelManager(self, didUpdateTunnelSettings: newValue?.tunnelSettings, accountToken: newValue?.token)
-                    }
-                }
+                tunnelInfoDidChange(newValue)
             }
         }
         get {
@@ -429,6 +424,15 @@ class TunnelManager {
     }
 
     // MARK: - Private methods
+
+    private func tunnelInfoDidChange(_ newTunnelInfo: TunnelInfo?) {
+        // Notify observers
+        DispatchQueue.main.async {
+            self.observerList.forEach { (observer) in
+                observer.tunnelManager(self, didUpdateTunnelSettings: newTunnelInfo)
+            }
+        }
+    }
 
     private func initializeManager(accountToken: String?, tunnels: [TunnelProviderManagerType]?, completionHandler: @escaping (Result<(), Error>) -> Void) {
         // Migrate the tunnel settings if needed

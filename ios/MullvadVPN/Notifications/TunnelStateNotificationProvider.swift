@@ -74,7 +74,7 @@ class TunnelStateNotificationProvider: NotificationProvider, InAppNotificationPr
         self.invalidate()
     }
 
-    func tunnelManager(_ manager: TunnelManager, didUpdateTunnelSettings tunnelSettings: TunnelSettings?, accountToken: String?) {
+    func tunnelManager(_ manager: TunnelManager, didUpdateTunnelSettings tunnelInfo: TunnelInfo?) {
         // no-op
     }
 
