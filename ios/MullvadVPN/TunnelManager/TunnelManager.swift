@@ -58,14 +58,6 @@ class TunnelManager {
     /// A VPN connection status observer
     private var connectionStatusObserver: NSObjectProtocol?
 
-    struct TunnelInfo {
-        /// Mullvad account token
-        var token: String
-
-        /// Tunnel settings
-        var tunnelSettings: TunnelSettings
-    }
-
     private(set) var tunnelInfo: TunnelInfo? {
         set {
             stateLock.withCriticalBlock {

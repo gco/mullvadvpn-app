@@ -142,7 +142,7 @@ class ConnectViewController: UIViewController, MKMapViewDelegate, RootContainmen
 
     // MARK: - TunnelObserver
 
-    func tunnelManager(_ manager: TunnelManager, didUpdateTunnelSettings tunnelSettings: TunnelSettings?, accountToken: String?) {
+    func tunnelManager(_ manager: TunnelManager, didUpdateTunnelSettings tunnelInfo: TunnelInfo?) {
         // no-op
     }
 

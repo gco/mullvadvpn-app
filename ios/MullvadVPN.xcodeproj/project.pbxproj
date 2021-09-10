@@ -289,6 +289,7 @@
 		58FB865A26EA214400F188BC /* RelayCacheObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FB865926EA214400F188BC /* RelayCacheObserver.swift */; };
 		58FB865E26EA284E00F188BC /* LogFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FB865D26EA284E00F188BC /* LogFormatting.swift */; };
 		58FB865F26EA2E6D00F188BC /* LogFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FB865D26EA284E00F188BC /* LogFormatting.swift */; };
+		58FB866126EB678000F188BC /* TunnelInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FB866026EB677F00F188BC /* TunnelInfo.swift */; };
 		58FD5BE724192A2C00112C88 /* AppStoreReceipt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FD5BE624192A2B00112C88 /* AppStoreReceipt.swift */; };
 		58FD5BF024238EB300112C88 /* SKProduct+Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FD5BEF24238EB300112C88 /* SKProduct+Formatting.swift */; };
 		58FD5BF22424F7D700112C88 /* UserInterfaceInteractionRestriction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FD5BF12424F7D700112C88 /* UserInterfaceInteractionRestriction.swift */; };
@@ -539,6 +540,7 @@
 		58FB865726EA213300F188BC /* AnyRelayCacheObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyRelayCacheObserver.swift; sourceTree = "<group>"; };
 		58FB865926EA214400F188BC /* RelayCacheObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayCacheObserver.swift; sourceTree = "<group>"; };
 		58FB865D26EA284E00F188BC /* LogFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogFormatting.swift; sourceTree = "<group>"; };
+		58FB866026EB677F00F188BC /* TunnelInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelInfo.swift; sourceTree = "<group>"; };
 		58FD5BE624192A2B00112C88 /* AppStoreReceipt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreReceipt.swift; sourceTree = "<group>"; };
 		58FD5BEF24238EB300112C88 /* SKProduct+Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SKProduct+Formatting.swift"; sourceTree = "<group>"; };
 		58FD5BF12424F7D700112C88 /* UserInterfaceInteractionRestriction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserInterfaceInteractionRestriction.swift; sourceTree = "<group>"; };
@@ -629,6 +631,7 @@
 				5820676326E771DB00655B05 /* TunnelManagerError.swift */,
 				5823FA5326CE49F600283BF8 /* TunnelObserver.swift */,
 				58B93A1226C3F13600A55733 /* TunnelState.swift */,
+				58FB866026EB677F00F188BC /* TunnelInfo.swift */,
 			);
 			path = TunnelManager;
 			sourceTree = "<group>";
@@ -1351,6 +1354,7 @@
 				5823FA5626CE4A2B00283BF8 /* AnyTunnelObserver.swift in Sources */,
 				58FD5BE724192A2C00112C88 /* AppStoreReceipt.swift in Sources */,
 				5892A45E265FABFF00890742 /* EmptyTableViewHeaderFooterView.swift in Sources */,
+				58FB866126EB678000F188BC /* TunnelInfo.swift in Sources */,
 				5835B7CC233B76CB0096D79F /* TunnelManager.swift in Sources */,
 				58B93A1326C3F13600A55733 /* TunnelState.swift in Sources */,
 				58FEEB46260A028D00A621A8 /* GeoJSON.swift in Sources */,
