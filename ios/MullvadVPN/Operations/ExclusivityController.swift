@@ -8,36 +8,46 @@
 
 import Foundation
 
-class ExclusivityController {
+class ExclusivityController: NSObject {
     private let lock = NSLock()
     private var operations: [String: [Operation]] = [:]
+    private var categoriesByOperation: [Operation: [String]] = [:]
 
     static let shared = ExclusivityController()
 
-    private init() {}
+    private override init() {}
 
     func addOperation(_ operation: Operation, categories: [String]) {
         lock.withCriticalBlock {
             categories.forEach { category in
-                _addOperation(operation, category: category)
+                addOperation(operation, category: category)
             }
 
-            // Automatically unregister operation on completion
-            operation.addCompletionBlock { [weak self] in
-                self?.removeOperation(operation, categories: categories)
-            }
+            addObserverIfNeeded(operation: operation, categories: categories)
         }
     }
 
     func removeOperation(_ operation: Operation, categories: [String]) {
         lock.withCriticalBlock {
             categories.forEach { category in
-                _removeOperation(operation, category: category)
+                removeOperation(operation, category: category)
             }
+
+            removeObserverIfNeeded(operation: operation, categories: categories)
         }
     }
 
-    private func _addOperation(_ operation: Operation, category: String) {
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
+        if let operation = object as? Operation, keyPath == "isFinished" {
+            operationDidFinish(operation)
+        } else {
+            super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
+        }
+    }
+
+    // MARK: - Private
+
+    private func addOperation(_ operation: Operation, category: String) {
         var operationsWithThisCategory = operations[category] ?? []
 
         if let last = operationsWithThisCategory.last {
@@ -49,12 +59,57 @@ class ExclusivityController {
         operations[category] = operationsWithThisCategory
     }
 
-    private func _removeOperation(_ operation: Operation, category: String) {
+    private func removeOperation(_ operation: Operation, category: String) {
         guard var operationsWithThisCategory = operations[category],
               let index = operationsWithThisCategory.firstIndex(of: operation) else { return }
 
         operationsWithThisCategory.remove(at: index)
-        operations[category] = operationsWithThisCategory
+
+        if operationsWithThisCategory.isEmpty {
+            operations.removeValue(forKey: category)
+        } else {
+            operations[category] = operationsWithThisCategory
+        }
+    }
+
+    private func addObserverIfNeeded(operation: Operation, categories: [String]) {
+        let existingCategories = categoriesByOperation[operation] ?? []
+        let newCategories = existingCategories + categories
+
+        if existingCategories.isEmpty && !newCategories.isEmpty {
+            operation.addObserver(self, forKeyPath: "isFinished", options: .new, context: nil)
+        }
+
+        if !newCategories.isEmpty {
+            categoriesByOperation[operation] = newCategories
+        }
+    }
+
+    private func removeObserverIfNeeded(operation: Operation, categories: [String]) {
+        guard var newCategories = categoriesByOperation[operation] else { return }
+
+        newCategories.removeAll { s in
+            categories.contains(s)
+        }
+
+        if newCategories.isEmpty {
+            operation.removeObserver(self, forKeyPath: "isFinished", context: nil)
+
+            categoriesByOperation.removeValue(forKey: operation)
+        } else {
+            categoriesByOperation[operation] = newCategories
+        }
+    }
+
+    private func operationDidFinish(_ operation: Operation) {
+        lock.withCriticalBlock {
+            let operationCategories = categoriesByOperation[operation] ?? []
+
+            removeObserverIfNeeded(operation: operation, categories: operationCategories)
+
+            operationCategories.forEach { category in
+                removeOperation(operation, category: category)
+            }
+        }
     }
 }
-
