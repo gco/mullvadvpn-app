@@ -66,7 +66,7 @@ enum AppStoreReceipt {
 
         return Result { try Data(contentsOf: appStoreReceiptURL) }
             .mapError { (error) -> Error in
-                if let cocoaError = error as? CocoaError, cocoaError.code == .fileReadNoSuchFile {
+                if let cocoaError = error as? CocoaError, cocoaError.code == .fileReadNoSuchFile || cocoaError.code == .fileNoSuchFile {
                     return .doesNotExist
                 } else {
                     return .io(error)
