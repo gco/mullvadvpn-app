@@ -101,6 +101,11 @@ class AppStorePaymentManager: NSObject, SKPaymentTransactionObserver {
             let operation = ProductsRequestOperation(productIdentifiers: productIdentifiers) { result in
                 resolver.resolve(value: result)
             }
+
+            resolver.setCancelHandler {
+                operation.cancel()
+            }
+
             ExclusivityController.shared.addOperation(operation, categories: [OperationCategory.productsRequest])
             self.operationQueue.addOperation(operation)
         }
