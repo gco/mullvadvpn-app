@@ -49,7 +49,7 @@ class TunnelManager {
     }()
 
     private var tunnelProvider: TunnelProviderManagerType?
-    private var tunnelIpc: PacketTunnelIpc?
+    private var ipcSession: TunnelIPC.Session?
     private var tunnelConnectionInfoToken: PromiseCancellationToken?
 
     private let stateLock = NSLock()
@@ -366,7 +366,7 @@ class TunnelManager {
                         self.unregisterConnectionObserver()
                         self.tunnelConnectionInfoToken = nil
                         self.tunnelState = .disconnected
-                        self.tunnelIpc = nil
+                        self.ipcSession = nil
 
                         // Remove settings from Keychain
                         if case .failure(let error) = TunnelSettingsManager.remove(searchTerm: .accountToken(tunnelInfo.token)) {
@@ -668,7 +668,7 @@ class TunnelManager {
         self.tunnelProvider = tunnelProvider
 
         // Set up tunnel IPC
-        self.tunnelIpc = PacketTunnelIpc(from: tunnelProvider)
+        self.ipcSession = TunnelIPC.Session(from: tunnelProvider)
 
         // Register for tunnel connection status changes
         unregisterConnectionObserver()
@@ -765,7 +765,7 @@ class TunnelManager {
             }
 
         case .reasserting:
-            tunnelIpc?.getTunnelConnectionInfo()
+            ipcSession?.getTunnelConnectionInfo()
                 .receive(on: stateQueue)
                 .storeCancellationToken(in: &tunnelConnectionInfoToken)
                 .onSuccess { connectionInfo in
@@ -776,7 +776,7 @@ class TunnelManager {
                 .observe { _ in }
 
         case .connected:
-            tunnelIpc?.getTunnelConnectionInfo()
+            ipcSession?.getTunnelConnectionInfo()
                 .receive(on: stateQueue)
                 .storeCancellationToken(in: &tunnelConnectionInfoToken)
                 .onSuccess { connectionInfo in
@@ -852,9 +852,9 @@ class TunnelManager {
     }
 
     private func notifyTunnelOnSettingsChange() -> Promise<Void> {
-        return Promise.deferred { () -> (PacketTunnelIpc, TunnelProviderManagerType)? in
-            if let tunnelIpc = self.tunnelIpc, let tunnelProvider = self.tunnelProvider {
-                return (tunnelIpc, tunnelProvider)
+        return Promise.deferred { () -> (TunnelIPC.Session, TunnelProviderManagerType)? in
+            if let ipcSession = self.ipcSession, let tunnelProvider = self.tunnelProvider {
+                return (ipcSession, tunnelProvider)
             } else {
                 return nil
             }

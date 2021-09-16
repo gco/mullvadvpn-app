@@ -50,20 +50,20 @@ class SimulatorTunnelProviderHost: SimulatorTunnelProviderDelegate {
     }
 
     override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
-        PacketTunnelIpcHandler.decodeRequest(messageData: messageData)
+        Result { try TunnelIPC.Coding.decodeRequest(messageData) }
             .asPromise()
             .receive(on: stateQueue)
             .onFailure { error in
-                self.providerLogger.error(chainedError: error, message: "Failed to decode the IPC request.")
+                self.providerLogger.error(chainedError: AnyChainedError(error), message: "Failed to decode the IPC request.")
             }
             .success()
             .mapThen(defaultValue: nil) { request in
                 switch request {
                 case .tunnelConnectionInfo:
-                    return PacketTunnelIpcHandler.encodeResponse(self.connectionInfo)
+                    return Result { try TunnelIPC.Coding.encodeResponse(self.connectionInfo) }
                         .asPromise()
                         .onFailure { error in
-                            self.providerLogger.error(chainedError: error, message: "Failed to encode tunnel connection info IPC response.")
+                            self.providerLogger.error(chainedError: AnyChainedError(error), message: "Failed to encode tunnel connection info IPC response.")
                         }
                         .success()
 

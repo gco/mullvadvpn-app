@@ -122,7 +122,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
-        PacketTunnelIpcHandler.decodeRequest(messageData: messageData)
+        Result { try TunnelIPC.Coding.decodeRequest(messageData) }
             .mapError { PacketTunnelProviderError.ipcHandler($0) }
             .asPromise()
             .onFailure { error in
@@ -138,7 +138,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     return .success(nil)
 
                 case .tunnelConnectionInfo:
-                    return PacketTunnelIpcHandler.encodeResponse(self.tunnelConnectionInfo)
+                    return Result { try TunnelIPC.Coding.encodeResponse(self.tunnelConnectionInfo) }
                         .mapError { PacketTunnelProviderError.ipcHandler($0) }
                         .map { data -> Data? in
                             return .some(data)
@@ -255,7 +255,7 @@ enum PacketTunnelProviderError: ChainedError {
     case updateWireguardConfiguration(WireGuardAdapterError)
 
     /// IPC handler failure
-    case ipcHandler(PacketTunnelIpcHandler.Error)
+    case ipcHandler(Error)
 
     var errorDescription: String? {
         switch self {

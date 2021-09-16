@@ -8,7 +8,7 @@
 
 import Foundation
 
-/// A struct that holds the basic information regarding the tunnel connection
+/// A struct that holds basic information regarding the tunnel connection.
 struct TunnelConnectionInfo: Codable, Equatable {
     let ipv4Relay: IPv4Endpoint
     let ipv6Relay: IPv6Endpoint?
