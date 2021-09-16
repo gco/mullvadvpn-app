@@ -26,10 +26,10 @@ extension RelayCache {
         private let prebundledRelaysFileURL: URL
 
         /// A dispatch queue used for thread synchronization
-        private let stateQueue = DispatchQueue(label: "RelayCacheTracker")
+        private let stateQueue = DispatchQueue(label: "RelayCacheTrackerStateQueue")
 
-        /// A dispatch queue used for serializing downloads
-        private let downloadQueue = DispatchQueue(label: "RelayCacheTrackerDownloadQueue")
+        /// A dispatch queue used for serializing relay cache updates
+        private let updateQueue = DispatchQueue(label: "RelayCacheTrackerUpdateQueue")
 
         /// A timer source used for periodic updates
         private var timerSource: DispatchSourceTimer?
@@ -118,6 +118,7 @@ extension RelayCache {
                     }
                 }
             }
+            .block(on: updateQueue)
         }
 
         func read() -> Result<CachedRelays, RelayCache.Error>.Promise {
@@ -186,7 +187,6 @@ extension RelayCache {
                             }
                     }
                 }
-                .block(on: downloadQueue)
         }
 
         private func scheduleRepeatingTimer(startTime: DispatchWallTime) {
