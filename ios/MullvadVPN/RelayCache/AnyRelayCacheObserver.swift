@@ -10,7 +10,7 @@ import Foundation
 
 extension RelayCache {
 
-    class AnyRelayCacheObserver: WeakObserverBox, RelayCacheObserver {
+    final class AnyRelayCacheObserver: WeakObserverBox, RelayCacheObserver {
         typealias Wrapped = RelayCacheObserver
 
         private(set) weak var inner: RelayCacheObserver?
