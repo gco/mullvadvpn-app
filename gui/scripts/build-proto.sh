@@ -21,7 +21,7 @@ fi
 mkdir -p $DESTINATION_DIR
 mkdir -p $TYPES_DESTINATION_DIR
 
-if [[ "${PLATFORM}" == "Darwin-arm64" ]]; then
+if [[ "${PLATFORM}" == "Darwin-arm64" || "${PLATFORM}" == "Linux-aarch64" ]]; then
     if [[ -n "${MANAGEMENT_INTERFACE_PROTO_BUILD_DIR}" ]]; then
       cp $MANAGEMENT_INTERFACE_PROTO_BUILD_DIR/*.js $DESTINATION_DIR
       cp $MANAGEMENT_INTERFACE_PROTO_BUILD_DIR/*.ts $TYPES_DESTINATION_DIR
